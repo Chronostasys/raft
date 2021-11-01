@@ -21,6 +21,9 @@ import (
 	"bytes"
 	"log"
 	"math/rand"
+	"net"
+	"net/http"
+	"net/rpc"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -110,6 +113,7 @@ type Raft struct {
 	lastIncludedTerm  int64
 	logger            *log.Logger
 	debug             bool
+	l                 net.Listener
 
 	// public
 	MaxRaftStateSize int
@@ -220,7 +224,7 @@ type RequestVoteReply struct {
 //
 // example RequestVote RPC handler.
 //
-func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
+func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) (err error) {
 	// Your code here (2A, 2B).
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
@@ -264,7 +268,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		reply.VoteGranted = true
 		rf.Log("votes for", args.CandidateID)
 	}
-
+	return
 }
 func (rf *Raft) applyCommits(commitIndex int64) {
 	for i := rf.commitIndex; i < commitIndex && int(i) < len(rf.logs)+rf.lastIncludedIndex; i++ {
@@ -343,7 +347,7 @@ func (rf *Raft) getHeartBeat() {
 	}
 }
 
-func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
+func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) (err error) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 	defer func() {
@@ -416,6 +420,7 @@ MERLOG:
 		reply.Success = false
 
 	}
+	return
 }
 
 func (rf *Raft) buildXParams(args *AppendEntriesArgs, reply *AppendEntriesReply) {
@@ -501,7 +506,7 @@ type InstallSnapshotReply struct {
 	Term int64
 }
 
-func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapshotReply) {
+func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapshotReply) (err error) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 	defer func() {
@@ -542,6 +547,7 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 		// TODO implement 分片传输
 		log.Fatalln("not implement yet")
 	}
+	return
 }
 func (rf *Raft) appendEntries(server int, reply *AppendEntriesReply) (succ bool) {
 	locked := rf.appendmu[server].Lock()
@@ -807,6 +813,41 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	}
 	return idx, int(term), isleader
 }
+func (rf *Raft) StartMulti(commands ...interface{}) (int, int, bool) {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	isleader := false
+	idx := -1
+	term := rf.currentTerm
+	// Your code here (2B).
+	if rf.role == leader {
+		isleader = true
+		if len(rf.logs) != 0 {
+			idx = rf.logs[len(rf.logs)-1].Index + 1
+		} else {
+			idx = rf.lastIncludedIndex + 1
+		}
+		for _, v := range commands {
+			rf.logs = append(rf.logs, Log{Command: v, Term: term, Index: idx})
+			idx++
+		}
+		rf.persist()
+		// rf.checkAndSaveSnapshot(false)
+		rf.Log("get command", commands, "idx", idx)
+		go func() {
+			rf.morethanHalf(func(id int) bool {
+				rf.Log("start appentry", id)
+				re := &AppendEntriesReply{}
+				ok := rf.appendEntries(id, re)
+				rf.Log("done appentry", id)
+				return ok && re.Success
+
+			})
+
+		}()
+	}
+	return idx, int(term), isleader
+}
 
 //
 // the tester doesn't halt goroutines created by Raft after each test,
@@ -1026,4 +1067,36 @@ func Make(peers []RPCEnd, me int,
 	}()
 
 	return rf
+}
+
+var servemu = sync.Mutex{}
+
+func (rf *Raft) Serve(addr string) {
+	servemu.Lock()
+
+	// ===== workaround ==========
+	oldMux := http.DefaultServeMux
+	mux := http.NewServeMux()
+	http.DefaultServeMux = mux
+	// ===========================
+	server := rpc.NewServer()
+	server.Register(rf)
+	server.HandleHTTP(rpc.DefaultRPCPath, rpc.DefaultDebugPath)
+
+	// ===== workaround ==========
+	http.DefaultServeMux = oldMux
+	// ===========================
+	servemu.Unlock()
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	rf.l = l
+	http.Serve(l, mux)
+
+}
+
+func (rf *Raft) Close() {
+	rf.Kill()
+	rf.l.Close()
 }

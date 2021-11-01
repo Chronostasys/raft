@@ -463,8 +463,9 @@ func MakeService(rcvr interface{}) *Service {
 		if method.PkgPath != "" || // capitalized?
 			mtype.NumIn() != 3 ||
 			//mtype.In(1).Kind() != reflect.Ptr ||
-			mtype.In(2).Kind() != reflect.Ptr ||
-			mtype.NumOut() != 0 {
+			mtype.In(2).Kind() != reflect.Ptr { //||
+			//mtype.NumOut() != 0 {
+
 			// the method is not suitable for a handler
 			//fmt.Printf("bad method: %v\n", mname)
 		} else {
