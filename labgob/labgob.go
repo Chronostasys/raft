@@ -21,6 +21,8 @@ var mu sync.Mutex
 var errorCount int // for TestCapital
 var checked map[reflect.Type]bool
 
+const debug = false
+
 type LabEncoder struct {
 	gob *gob.Encoder
 }
@@ -68,7 +70,9 @@ func RegisterName(name string, value interface{}) {
 }
 
 func checkValue(value interface{}) {
-	checkType(reflect.TypeOf(value))
+	if debug {
+		checkType(reflect.TypeOf(value))
+	}
 }
 
 func checkType(t reflect.Type) {
@@ -122,10 +126,12 @@ func checkType(t reflect.Type) {
 // the non-default value.
 //
 func checkDefault(value interface{}) {
-	if value == nil {
-		return
+	if debug {
+		if value == nil {
+			return
+		}
+		checkDefault1(reflect.ValueOf(value), 1, "")
 	}
-	checkDefault1(reflect.ValueOf(value), 1, "")
 }
 
 func checkDefault1(value reflect.Value, depth int, name string) {
