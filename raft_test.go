@@ -59,7 +59,23 @@ func Start(rfs []*Raft, cmd []interface{}, last int) int {
 		}
 	}
 }
-func BenchmarkRaft(b *testing.B) {
+func StartCache(rfs []*Raft, cmd interface{}, last int) int {
+	leader := rfs[last].StartWithCache(cmd)
+	if leader {
+		return last
+	}
+	for {
+		for i, v := range rfs {
+			if i != last {
+				leader := v.StartWithCache(cmd)
+				if leader {
+					return i
+				}
+			}
+		}
+	}
+}
+func BenchmarkRaftStart(b *testing.B) {
 	b.StopTimer()
 	ends := []string{":1234", ":1235", ":1236"}
 	rpcends := MakeRPCEnds(ends)
@@ -69,10 +85,12 @@ func BenchmarkRaft(b *testing.B) {
 		rfs[i] = Make(rpcends, i, MakePersister(), ch)
 		go rfs[i].Serve(ends[i])
 	}
+	leaderid := 0
 ELECTION:
 	for {
-		for _, v := range rfs {
+		for i, v := range rfs {
 			if _, leader := v.GetState(); leader {
+				leaderid = i
 				break ELECTION
 			}
 		}
@@ -82,9 +100,14 @@ ELECTION:
 	chiter := len(ends) * iter
 	for n := 0; n < b.N; n++ {
 		b.Log("start")
-		go func() {
-			Start(rfs[:], make([]interface{}, iter), 0)
-		}()
+		// go func() {
+		// 	leaderid = Start(rfs[:], make([]interface{}, iter), leaderid)
+		// }()
+		for i := 0; i < iter; i++ {
+			go func() {
+				leaderid = StartCache(rfs[:], 0, leaderid)
+			}()
+		}
 		for i := 0; i < chiter; i++ {
 			<-ch
 		}

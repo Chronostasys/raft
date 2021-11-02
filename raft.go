@@ -114,6 +114,12 @@ type Raft struct {
 	logger            *log.Logger
 	debug             bool
 	l                 net.Listener
+	cache             []interface{}
+	cachemu           *sync.Mutex
+	cacheSuccCh       chan struct{}
+	cacheFailCh       chan struct{}
+	cacheidx          int
+	sendCh            chan struct{}
 
 	// public
 	MaxRaftStateSize int
@@ -819,6 +825,38 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	}
 	return idx, int(term), isleader
 }
+func (rf *Raft) StartWithCache(command interface{}) bool {
+	rf.cachemu.Lock()
+	succCh := rf.cacheSuccCh
+	failCh := rf.cacheFailCh
+	rf.cache[rf.cacheidx] = command
+	rf.cacheidx++
+	if rf.cacheidx >= 1000 {
+		select {
+		case rf.sendCh <- struct{}{}:
+		default:
+		}
+		succ := rf.StartMulti(rf.cache[:rf.cacheidx]...)
+		rf.cacheidx = 0
+		if succ {
+			close(succCh)
+			rf.cacheSuccCh = make(chan struct{})
+		} else {
+			close(failCh)
+			rf.cacheFailCh = make(chan struct{})
+		}
+		rf.cachemu.Unlock()
+		return succ
+	}
+	rf.cachemu.Unlock()
+	select {
+	case <-succCh:
+		return true
+	case <-failCh:
+		return false
+
+	}
+}
 func (rf *Raft) StartMulti(commands ...interface{}) bool {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
@@ -968,6 +1006,11 @@ func Make(peers []RPCEnd, me int,
 		electionChan:     make(chan struct{}, 1),
 		MaxRaftStateSize: -1,
 		killch:           make(chan struct{}),
+		cache:            make([]interface{}, 1000),
+		cachemu:          &sync.Mutex{},
+		cacheSuccCh:      make(chan struct{}),
+		cacheFailCh:      make(chan struct{}),
+		sendCh:           make(chan struct{}, 1),
 	}
 	for i := 0; i < len(peers); i++ {
 		rf.nextIndex[i] = 1
@@ -1072,22 +1115,29 @@ func Make(peers []RPCEnd, me int,
 		}
 	}()
 
-	// go func() {
-	// 	for {
-	// 		time.Sleep(time.Millisecond * 100)
-	// 		go func() {
-	// 			rf.morethanHalf(func(id int) bool {
-	// 				rf.Log("start appentry", id)
-	// 				re := &AppendEntriesReply{}
-	// 				ok := rf.appendEntries(id, re)
-	// 				rf.Log("done appentry", id)
-	// 				return ok && re.Success
-
-	// 			})
-
-	// 		}()
-	// 	}
-	// }()
+	go func() {
+		for {
+			select {
+			case <-rf.sendCh:
+			case <-time.After(time.Millisecond * 100):
+				rf.cachemu.Lock()
+				if rf.cacheidx != 0 {
+					succCh := rf.cacheSuccCh
+					failCh := rf.cacheFailCh
+					succ := rf.StartMulti(rf.cache[:rf.cacheidx]...)
+					rf.cacheidx = 0
+					if succ {
+						close(succCh)
+						rf.cacheSuccCh = make(chan struct{})
+					} else {
+						close(failCh)
+						rf.cacheFailCh = make(chan struct{})
+					}
+				}
+				rf.cachemu.Unlock()
+			}
+		}
+	}()
 
 	return rf
 }
