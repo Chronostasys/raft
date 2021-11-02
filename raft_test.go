@@ -44,14 +44,14 @@ CMD:
 	}
 }
 func Start(rfs []*Raft, cmd []interface{}, last int) int {
-	_, _, leader := rfs[last].StartMulti(cmd...)
+	leader := rfs[last].StartMulti(cmd...)
 	if leader {
 		return last
 	}
 	for {
 		for i, v := range rfs {
 			if i != last {
-				_, _, leader := v.StartMulti(cmd...)
+				leader := v.StartMulti(cmd...)
 				if leader {
 					return i
 				}

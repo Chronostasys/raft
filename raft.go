@@ -690,8 +690,13 @@ func (rf *Raft) leaderCommit() {
 		return ss[i] < ss[j]
 	})
 	rf.Log("match index", rf.matchIndex)
-	rf.applyCommits(ss[len(ss)/2+1])
-	rf.Log("leader applied commit", ss[len(ss)/2+1])
+	commitIDX := ss[len(ss)/2+1]
+	idx := commitIDX - 1 - int64(rf.lastIncludedIndex)
+	// check Figure 8
+	if idx >= 0 && rf.logs[idx].Term == rf.currentTerm {
+		rf.applyCommits(commitIDX)
+		rf.Log("leader applied commit", commitIDX)
+	}
 }
 
 func (rf *Raft) sendHeartbeat(server int) bool {
@@ -782,6 +787,7 @@ func (rf *Raft) checkAndSaveSnapshot() bool {
 // the leader.
 //
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
+
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 	isleader := false
@@ -799,21 +805,21 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		rf.persist()
 		// rf.checkAndSaveSnapshot(false)
 		rf.Log("get command", command, "idx", idx)
-		go func() {
-			rf.morethanHalf(func(id int) bool {
-				rf.Log("start appentry", id)
-				re := &AppendEntriesReply{}
-				ok := rf.appendEntries(id, re)
-				rf.Log("done appentry", id)
-				return ok && re.Success
+		// go func() {
+		// 	rf.morethanHalf(func(id int) bool {
+		// 		rf.Log("start appentry", id)
+		// 		re := &AppendEntriesReply{}
+		// 		ok := rf.appendEntries(id, re)
+		// 		rf.Log("done appentry", id)
+		// 		return ok && re.Success
 
-			})
+		// 	})
 
-		}()
+		// }()
 	}
 	return idx, int(term), isleader
 }
-func (rf *Raft) StartMulti(commands ...interface{}) (int, int, bool) {
+func (rf *Raft) StartMulti(commands ...interface{}) bool {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 	isleader := false
@@ -833,7 +839,7 @@ func (rf *Raft) StartMulti(commands ...interface{}) (int, int, bool) {
 		}
 		rf.persist()
 		// rf.checkAndSaveSnapshot(false)
-		rf.Log("get command", commands, "idx", idx)
+		rf.Log("get commands", commands)
 		go func() {
 			rf.morethanHalf(func(id int) bool {
 				rf.Log("start appentry", id)
@@ -846,7 +852,7 @@ func (rf *Raft) StartMulti(commands ...interface{}) (int, int, bool) {
 
 		}()
 	}
-	return idx, int(term), isleader
+	return isleader
 }
 
 //
@@ -1063,6 +1069,23 @@ func Make(peers []RPCEnd, me int,
 				}()
 			}
 			rf.mu.Unlock()
+		}
+	}()
+
+	go func() {
+		for {
+			time.Sleep(time.Millisecond * 100)
+			go func() {
+				rf.morethanHalf(func(id int) bool {
+					rf.Log("start appentry", id)
+					re := &AppendEntriesReply{}
+					ok := rf.appendEntries(id, re)
+					rf.Log("done appentry", id)
+					return ok && re.Success
+
+				})
+
+			}()
 		}
 	}()
 
