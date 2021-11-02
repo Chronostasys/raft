@@ -1,10 +1,8 @@
 package raft
 
 import (
-	"fmt"
 	"net/rpc"
 	"sync"
-	"time"
 )
 
 type RPCEnd interface {
@@ -14,22 +12,28 @@ type RPCEnd interface {
 type clientEnd struct {
 	c   *rpc.Client
 	end string
-	o   *sync.Once
+	mu  *sync.Mutex
 }
 
 func (c *clientEnd) Call(svcMeth string, args interface{}, reply interface{}) bool {
-	c.o.Do(func() {
-		for {
-			client, err := rpc.DialHTTP("tcp", c.end)
-			if err == nil {
-				c.c = client
-				return
-			}
-			fmt.Println(err, svcMeth)
-			time.Sleep(time.Millisecond * 100)
+	c.mu.Lock()
+	if c.c == nil {
+		client, err := rpc.DialHTTP("tcp", c.end)
+		if err == nil {
+			c.c = client
+		} else {
+			c.mu.Unlock()
+			return false
 		}
-	})
+	}
+	c.mu.Unlock()
 	err := c.c.Call(svcMeth, args, reply)
+	if err == rpc.ErrShutdown {
+		// conn lost, reconnect
+		c.mu.Lock()
+		c.c = nil
+		c.mu.Unlock()
+	}
 	return err == nil
 }
 
@@ -37,7 +41,7 @@ func MakeRPCEnds(ends []string) []RPCEnd {
 	rpcends := make([]RPCEnd, len(ends))
 	for i, v := range ends {
 		rpcends[i] = &clientEnd{
-			o:   &sync.Once{},
+			mu:  &sync.Mutex{},
 			end: v,
 		}
 	}

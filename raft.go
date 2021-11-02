@@ -805,17 +805,17 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		rf.persist()
 		// rf.checkAndSaveSnapshot(false)
 		rf.Log("get command", command, "idx", idx)
-		// go func() {
-		// 	rf.morethanHalf(func(id int) bool {
-		// 		rf.Log("start appentry", id)
-		// 		re := &AppendEntriesReply{}
-		// 		ok := rf.appendEntries(id, re)
-		// 		rf.Log("done appentry", id)
-		// 		return ok && re.Success
+		go func() {
+			rf.morethanHalf(func(id int) bool {
+				rf.Log("start appentry", id)
+				re := &AppendEntriesReply{}
+				ok := rf.appendEntries(id, re)
+				rf.Log("done appentry", id)
+				return ok && re.Success
 
-		// 	})
+			})
 
-		// }()
+		}()
 	}
 	return idx, int(term), isleader
 }
@@ -1072,22 +1072,22 @@ func Make(peers []RPCEnd, me int,
 		}
 	}()
 
-	go func() {
-		for {
-			time.Sleep(time.Millisecond * 100)
-			go func() {
-				rf.morethanHalf(func(id int) bool {
-					rf.Log("start appentry", id)
-					re := &AppendEntriesReply{}
-					ok := rf.appendEntries(id, re)
-					rf.Log("done appentry", id)
-					return ok && re.Success
+	// go func() {
+	// 	for {
+	// 		time.Sleep(time.Millisecond * 100)
+	// 		go func() {
+	// 			rf.morethanHalf(func(id int) bool {
+	// 				rf.Log("start appentry", id)
+	// 				re := &AppendEntriesReply{}
+	// 				ok := rf.appendEntries(id, re)
+	// 				rf.Log("done appentry", id)
+	// 				return ok && re.Success
 
-				})
+	// 			})
 
-			}()
-		}
-	}()
+	// 		}()
+	// 	}
+	// }()
 
 	return rf
 }
