@@ -14,8 +14,9 @@ import (
 type Clerk struct {
 	servers []raft.RPCEnd
 	// You will have to modify this struct.
-	id    [16]byte
-	reqid int64
+	id         [16]byte
+	reqid      int64
+	prevLeader int
 }
 
 func nrand() int64 {
@@ -95,20 +96,32 @@ func (ck *Clerk) OneDone(job jobfunc, id int64) bool {
 		close(donech)
 		close(ch)
 	}()
+	prev := ck.prevLeader
+	ok := job(prev, id)
+	if ok {
+		for i := 0; i < len(ck.servers); i++ {
+			wg.Done()
+		}
+		return true
+
+	}
 	// You will have to modify this function.
 	for i := range ck.servers {
-		go func(i int) {
-			ok := job(i, id)
-			if ok {
-				select {
-				case <-donech:
-				case ch <- struct{}{}:
+		if i != prev {
+			go func(i int) {
+				ok := job(i, id)
+				if ok {
+					ck.prevLeader = i
+					select {
+					case <-donech:
+					case ch <- struct{}{}:
+
+					}
 
 				}
-
-			}
-			wg.Done()
-		}(i)
+				wg.Done()
+			}(i)
+		}
 	}
 	select {
 	case <-ch:

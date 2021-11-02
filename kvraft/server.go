@@ -219,7 +219,7 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) (err error) {
 		return
 	}
 	sig, _ := kv.idmap.get(args.ClientID).get(args.ReqID)
-	_, _, ok := kv.rf.Start(Op{Args: *args, ClientID: args.ClientID, ReqID: args.ReqID})
+	ok := kv.rf.StartWithCache(Op{Args: *args, ClientID: args.ClientID, ReqID: args.ReqID})
 	// fmt.Println("start get", args.ClientID, args.ReqID)
 	if ok {
 		select {
@@ -260,7 +260,7 @@ func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) (err e
 	// sig.mu.Lock()
 	// defer sig.mu.Unlock()
 	// fmt.Println("before start pa", args.ClientID, args.ReqID, args.Value, kv.checkLeader())
-	_, _, ok := kv.rf.Start(Op{Args: *args, ClientID: args.ClientID, ReqID: args.ReqID})
+	ok := kv.rf.StartWithCache(Op{Args: *args, ClientID: args.ClientID, ReqID: args.ReqID})
 	// fmt.Println("start pa", args.ClientID, args.ReqID)
 	if ok {
 		select {
