@@ -677,7 +677,7 @@ func (rf *Raft) StartWithCache(command interface{}) bool {
 	failCh := rf.cacheFailCh
 	rf.cache[rf.cacheidx] = command
 	rf.cacheidx++
-	if rf.cacheidx >= 1000 {
+	if rf.cacheidx >= rf.cacheThreshold {
 		select {
 		case rf.sendCh <- struct{}{}:
 		default:
@@ -690,6 +690,16 @@ func (rf *Raft) StartWithCache(command interface{}) bool {
 		} else {
 			close(failCh)
 			rf.cacheFailCh = make(chan struct{})
+		}
+		if rf.cacheThreshold < 100 {
+			rf.cacheThreshold = 2 * rf.cacheThreshold
+		} else if rf.cacheThreshold < 1000 {
+			rf.cacheThreshold = int(float64(rf.cacheThreshold) * 1.02)
+		} else {
+			rf.cacheThreshold = int(float64(rf.cacheThreshold) * 1.01)
+		}
+		if rf.cacheThreshold > len(rf.cache) {
+			rf.cacheThreshold = len(rf.cache)
 		}
 		rf.cachemu.Unlock()
 		return succ
@@ -850,11 +860,12 @@ func Make(peers []RPCEnd, me int,
 		electionChan:     make(chan struct{}, 1),
 		MaxRaftStateSize: -1,
 		killch:           make(chan struct{}),
-		cache:            make([]interface{}, 1000),
+		cache:            make([]interface{}, 10000),
 		cachemu:          &sync.Mutex{},
 		cacheSuccCh:      make(chan struct{}),
 		cacheFailCh:      make(chan struct{}),
 		sendCh:           make(chan struct{}, 1),
+		cacheThreshold:   1000,
 	}
 	for i := 0; i < len(peers); i++ {
 		rf.nextIndex[i] = 1
@@ -961,9 +972,10 @@ func Make(peers []RPCEnd, me int,
 
 	go func() {
 		for {
+			time.Sleep(time.Millisecond * 100)
 			select {
 			case <-rf.sendCh:
-			case <-time.After(time.Millisecond * 100):
+			default:
 				rf.cachemu.Lock()
 				if rf.cacheidx != 0 {
 					succCh := rf.cacheSuccCh
@@ -976,6 +988,11 @@ func Make(peers []RPCEnd, me int,
 					} else {
 						close(failCh)
 						rf.cacheFailCh = make(chan struct{})
+					}
+					if rf.cacheThreshold <= 100 {
+						rf.cacheThreshold = rf.cacheThreshold/2 + 1
+					} else {
+						rf.cacheThreshold = rf.cacheThreshold * 4 / 5
 					}
 				}
 				rf.cachemu.Unlock()
@@ -998,7 +1015,7 @@ func (rf *Raft) Serve(addr string) {
 	// ===========================
 	server := rpc.NewServer()
 	server.RegisterName("Raft", &RaftRPCServer{
-		rf: rf,
+		Rf: rf,
 	})
 	server.HandleHTTP(rpc.DefaultRPCPath, rpc.DefaultDebugPath)
 

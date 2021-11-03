@@ -316,7 +316,9 @@ func (kv *KVServer) Serve(addr string) {
 	// ===========================
 	server := rpc.NewServer()
 	server.Register(kv)
-	server.Register(kv.rf)
+	server.RegisterName("Raft", &raft.RaftRPCServer{
+		Rf: kv.rf,
+	})
 	server.HandleHTTP(rpc.DefaultRPCPath, rpc.DefaultDebugPath)
 
 	// ===== workaround ==========

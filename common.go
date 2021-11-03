@@ -81,6 +81,7 @@ type Raft struct {
 	cacheFailCh       chan struct{}
 	cacheidx          int
 	sendCh            chan struct{}
+	cacheThreshold    int
 
 	// public
 	MaxRaftStateSize int
@@ -145,18 +146,18 @@ type InstallSnapshotReply struct {
 type jobfunc func(id int) bool
 
 type RaftRPCServer struct {
-	rf *Raft
+	Rf *Raft
 }
 
 func (rf *RaftRPCServer) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapshotReply) (err error) {
-	rf.rf.InstallSnapshot(args, reply)
+	rf.Rf.InstallSnapshot(args, reply)
 	return
 }
 func (rf *RaftRPCServer) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) (err error) {
-	rf.rf.AppendEntries(args, reply)
+	rf.Rf.AppendEntries(args, reply)
 	return
 }
 func (rf *RaftRPCServer) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) (err error) {
-	rf.rf.RequestVote(args, reply)
+	rf.Rf.RequestVote(args, reply)
 	return
 }
