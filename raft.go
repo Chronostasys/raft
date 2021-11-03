@@ -771,6 +771,7 @@ func (rf *Raft) Kill() {
 	atomic.StoreInt32(&rf.dead, 1)
 	close(rf.killch)
 	// Your code here, if desired.
+	rf.persister.Kill()
 }
 
 func (rf *Raft) killed() bool {

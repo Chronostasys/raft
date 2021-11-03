@@ -25,6 +25,6 @@ func main() {
 	ends := os.Args[2:]
 	rpcends := raft.MakeRPCEnds(ends)
 	me, _ := strconv.Atoi(os.Args[1])
-	kv := kvraft.StartKVServer(rpcends, me, raft.MakePersister(), 1000)
+	kv := kvraft.StartKVServer(rpcends, me, raft.MakrRealPersister(me), 1000)
 	kv.Serve(ends[me])
 }

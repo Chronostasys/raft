@@ -29,7 +29,7 @@ func BenchmarkAppend(b *testing.B) {
 	rpcends := raft.MakeRPCEnds(ends)
 	servers := make([]*KVServer, len(ends))
 	for i := range rpcends {
-		servers[i] = StartKVServer(rpcends, i, raft.MakePersister(), 10000)
+		servers[i] = StartKVServer(rpcends, i, raft.MakePersister(), 1000)
 		go servers[i].Serve(ends[i])
 	}
 	client := MakeClerk(rpcends)
