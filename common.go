@@ -82,6 +82,7 @@ type Raft struct {
 	cacheidx          int
 	sendCh            chan struct{}
 	cacheThreshold    int
+	reqPer100ms       int64
 
 	// public
 	MaxRaftStateSize int

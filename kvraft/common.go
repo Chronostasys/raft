@@ -35,3 +35,17 @@ type GetReply struct {
 	Err   Err
 	Value string
 }
+
+type KVRPCServer struct {
+	kv *KVServer
+}
+
+func (kv *KVRPCServer) Get(args *GetArgs, reply *GetReply) (err error) {
+	kv.kv.Get(args, reply)
+	return
+}
+
+func (kv *KVRPCServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) (err error) {
+	kv.kv.PutAppend(args, reply)
+	return
+}

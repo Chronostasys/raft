@@ -53,7 +53,7 @@ func main() {
 			os.Exit(1)
 		}
 		input = strings.Trim(input, "\n\r ")
-		if len(input) == 0 {
+		if len(strings.Trim(input, " ")) == 0 {
 			continue
 		}
 		if input == "help" {
@@ -72,6 +72,9 @@ func main() {
 			} else {
 				cmds = append(cmds, v)
 			}
+		}
+		if cmds[0] == "exit" {
+			return
 		}
 		if cmds[0] == "append" {
 			if len(cmds) != 3 {
@@ -108,6 +111,7 @@ func printHelp() {
 	println("append [key] [value] - append value")
 	println("put [key] [value]    - update value")
 	println("get [key]            - get value")
+	println("exit                 - exit")
 	println("Examples:")
 	println("	put a b")
 	println("	append a \"b c\"")

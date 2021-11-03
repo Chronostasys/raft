@@ -672,12 +672,19 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	return idx, int(term), isleader
 }
 func (rf *Raft) StartWithCache(command interface{}) bool {
+	atomic.AddInt64(&rf.reqPer100ms, 1)
 	rf.cachemu.Lock()
 	succCh := rf.cacheSuccCh
 	failCh := rf.cacheFailCh
 	rf.cache[rf.cacheidx] = command
 	rf.cacheidx++
-	if rf.cacheidx >= rf.cacheThreshold {
+	if rf.cacheThreshold == 1 {
+		// low latency mode
+		_, _, succ := rf.Start(command)
+		rf.cacheidx = 0
+		rf.cachemu.Unlock()
+		return succ
+	} else if rf.cacheidx >= rf.cacheThreshold {
 		select {
 		case rf.sendCh <- struct{}{}:
 		default:
@@ -973,29 +980,37 @@ func Make(peers []RPCEnd, me int,
 	go func() {
 		for {
 			time.Sleep(time.Millisecond * 100)
+			rp100ms := atomic.LoadInt64(&rf.reqPer100ms)
+			atomic.AddInt64(&rf.reqPer100ms, -rp100ms)
 			select {
 			case <-rf.sendCh:
 			default:
-				rf.cachemu.Lock()
-				if rf.cacheidx != 0 {
-					succCh := rf.cacheSuccCh
-					failCh := rf.cacheFailCh
-					succ := rf.StartMulti(rf.cache[:rf.cacheidx]...)
-					rf.cacheidx = 0
-					if succ {
-						close(succCh)
-						rf.cacheSuccCh = make(chan struct{})
-					} else {
-						close(failCh)
-						rf.cacheFailCh = make(chan struct{})
+				go func(rp100ms int64) {
+					rf.cachemu.Lock()
+					defer rf.cachemu.Unlock()
+					if rf.cacheidx != 0 {
+						succCh := rf.cacheSuccCh
+						failCh := rf.cacheFailCh
+						succ := rf.StartMulti(rf.cache[:rf.cacheidx]...)
+						rf.cacheidx = 0
+						if succ {
+							close(succCh)
+							rf.cacheSuccCh = make(chan struct{})
+						} else {
+							close(failCh)
+							rf.cacheFailCh = make(chan struct{})
+						}
+						if rp100ms <= 100 {
+							// low latency mode
+							rf.cacheThreshold = 1
+						} else {
+							rf.cacheThreshold = int(rp100ms) * 4 / 5
+						}
+						if rf.cacheThreshold > len(rf.cache) {
+							rf.cacheThreshold = len(rf.cache)
+						}
 					}
-					if rf.cacheThreshold <= 100 {
-						rf.cacheThreshold = rf.cacheThreshold/2 + 1
-					} else {
-						rf.cacheThreshold = rf.cacheThreshold * 4 / 5
-					}
-				}
-				rf.cachemu.Unlock()
+				}(rp100ms)
 			}
 		}
 	}()

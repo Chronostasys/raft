@@ -1,0 +1,1 @@
+go test -bench=. -run=Append -benchtime=10000x

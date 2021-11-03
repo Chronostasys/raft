@@ -209,7 +209,7 @@ func (kv *KVServer) checkLeader() bool {
 	return isleader
 }
 
-func (kv *KVServer) Get(args *GetArgs, reply *GetReply) (err error) {
+func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 	// Your code here.
 	if kv.killed() {
 		reply.Err = "killed"
@@ -243,10 +243,9 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) (err error) {
 	} else {
 		reply.Err = "err raft start"
 	}
-	return
 }
 
-func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) (err error) {
+func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 	// Your code here.
 	if kv.killed() {
 		reply.Err = "killed"
@@ -280,7 +279,6 @@ func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) (err e
 	} else {
 		reply.Err = ErrWrongLeader
 	}
-	return
 }
 
 //
@@ -315,7 +313,9 @@ func (kv *KVServer) Serve(addr string) {
 	http.DefaultServeMux = mux
 	// ===========================
 	server := rpc.NewServer()
-	server.Register(kv)
+	server.RegisterName("KVServer", &KVRPCServer{
+		kv: kv,
+	})
 	server.RegisterName("Raft", &raft.RaftRPCServer{
 		Rf: kv.rf,
 	})
