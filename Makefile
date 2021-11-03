@@ -23,7 +23,7 @@ test-kv:
 	cd kvraft/ && time go test . -cover
 
 benchmark-rf:
-	go test -bench=. -run=RaftStart
+	go test -bench=. -run=RaftStart -benchtime=3x
 
 benchmark-kv:
 	cd kvraft/ && time go test -bench=. -run=Append -benchtime=10000x

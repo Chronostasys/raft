@@ -83,6 +83,10 @@ func BenchmarkRaftStart(b *testing.B) {
 	ch := make(chan ApplyMsg, 100)
 	for i := range rpcends {
 		rfs[i] = Make(rpcends, i, MakePersister(), ch)
+		rfs[i].MaxRaftStateSize = 1000
+		rfs[i].SnapshotFunc = func() []byte {
+			return []byte{}
+		}
 		go rfs[i].Serve(ends[i])
 	}
 	leaderid := 0
@@ -96,13 +100,16 @@ ELECTION:
 		}
 	}
 	b.StartTimer()
-	iter := 100000
+	iter := 1000000
+	threads := 100000
 	chiter := len(ends) * iter
 	for n := 0; n < b.N; n++ {
-		for i := 0; i < iter; i++ {
-			go func(i int) {
-				leaderid = StartCache(rfs, i, leaderid)
-			}(i)
+		for j := 0; j < threads; j++ {
+			go func(j int) {
+				for i := 0; i < iter/threads; i++ {
+					leaderid = StartCache(rfs, i+j*iter/threads, leaderid)
+				}
+			}(j)
 		}
 		for i := 0; i < chiter; i++ {
 			a := <-ch

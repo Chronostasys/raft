@@ -672,7 +672,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	return idx, int(term), isleader
 }
 func (rf *Raft) StartWithCache(command interface{}) bool {
-	atomic.AddInt64(&rf.reqPer100ms, 1)
+	rps := atomic.AddInt64(&rf.reqPer100ms, 1)
 	rf.cachemu.Lock()
 	succCh := rf.cacheSuccCh
 	failCh := rf.cacheFailCh
@@ -680,6 +680,9 @@ func (rf *Raft) StartWithCache(command interface{}) bool {
 	rf.cacheidx++
 	if rf.cacheThreshold == 1 {
 		// low latency mode
+		if rps >= 100 {
+			rf.cacheThreshold = 100
+		}
 		_, _, succ := rf.Start(command)
 		rf.cacheidx = 0
 		rf.cachemu.Unlock()
