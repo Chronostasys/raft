@@ -87,24 +87,20 @@ func (ck *Clerk) Get(key string) string {
 type jobfunc func(server int, id int64) bool
 
 func (ck *Clerk) OneDone(job jobfunc, id int64) bool {
+	prev := ck.prevLeader
+	ok := job(prev, id)
+	if ok {
+		return true
+	}
 	ch := make(chan struct{})
 	donech := make(chan struct{})
 	wg := sync.WaitGroup{}
-	wg.Add(len(ck.servers))
+	wg.Add(len(ck.servers) - 1)
 	go func() {
 		wg.Wait()
 		close(donech)
 		close(ch)
 	}()
-	prev := ck.prevLeader
-	ok := job(prev, id)
-	if ok {
-		for i := 0; i < len(ck.servers); i++ {
-			wg.Done()
-		}
-		return true
-
-	}
 	// You will have to modify this function.
 	for i := range ck.servers {
 		if i != prev {
