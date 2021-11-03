@@ -1,8 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	"github.com/Chronostasys/raft"
 	"github.com/Chronostasys/raft/kvraft"
@@ -26,5 +29,14 @@ func main() {
 	rpcends := raft.MakeRPCEnds(ends)
 	me, _ := strconv.Atoi(os.Args[1])
 	kv := kvraft.StartKVServer(rpcends, me, raft.MakrRealPersister(me), 1000)
-	kv.Serve(ends[me])
+	go kv.Serve(ends[me])
+	println("start serving at", ends[me])
+	println("persist data position:", fmt.Sprintf("%d.rast", me))
+	println("ctrl+c to shutdown")
+	s := make(chan os.Signal, 1)
+	signal.Notify(s, syscall.SIGINT, syscall.SIGTERM)
+	<-s
+	kv.Kill()
+	fmt.Println("Shutting down gracefully.")
+
 }
