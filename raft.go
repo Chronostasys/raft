@@ -701,9 +701,9 @@ func (rf *Raft) StartWithCache(command interface{}) bool {
 		if rf.cacheThreshold < 100 {
 			rf.cacheThreshold = 2 * rf.cacheThreshold
 		} else if rf.cacheThreshold < 1000 {
-			rf.cacheThreshold = int(float64(rf.cacheThreshold) * 1.02)
+			rf.cacheThreshold = int(float64(rf.cacheThreshold) * 1.5)
 		} else {
-			rf.cacheThreshold = int(float64(rf.cacheThreshold) * 1.01)
+			rf.cacheThreshold = int(float64(rf.cacheThreshold) * 1.2)
 		}
 		if rf.cacheThreshold > len(rf.cache) {
 			rf.cacheThreshold = len(rf.cache)
@@ -955,7 +955,6 @@ func Make(peers []RPCEnd, me int,
 					}
 					if ok {
 						rf.Log("become leader")
-						// fmt.Println(rf.me, "become leader")
 						atomic.StoreInt64(&rf.role, leader)
 						go func() {
 							for {

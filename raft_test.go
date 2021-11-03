@@ -99,17 +99,16 @@ ELECTION:
 	iter := 100000
 	chiter := len(ends) * iter
 	for n := 0; n < b.N; n++ {
-		b.Log("start")
-		// go func() {
-		// 	leaderid = Start(rfs[:], make([]interface{}, iter), leaderid)
-		// }()
 		for i := 0; i < iter; i++ {
-			go func() {
-				leaderid = StartCache(rfs[:], 0, leaderid)
-			}()
+			go func(i int) {
+				leaderid = StartCache(rfs, i, leaderid)
+			}(i)
 		}
 		for i := 0; i < chiter; i++ {
-			<-ch
+			a := <-ch
+			if a.Command == iter-1 {
+				break
+			}
 		}
 	}
 	b.StopTimer()

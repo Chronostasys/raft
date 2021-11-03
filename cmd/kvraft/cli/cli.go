@@ -300,7 +300,7 @@ func processInput(input string, client *kvraft.Clerk) int {
 		}) {
 			return -1
 		}
-		tprint("	Append OK -- ", termbox.ColorDefault)
+		tprint("    Append OK -- ", termbox.ColorDefault)
 		tprintln(t(), termbox.ColorLightGreen)
 		return 0
 	} else if cmds[0] == "put" {
@@ -315,7 +315,7 @@ func processInput(input string, client *kvraft.Clerk) int {
 		}) {
 			return -1
 		}
-		tprint("	Put OK -- ", termbox.ColorDefault)
+		tprint("    Put OK -- ", termbox.ColorDefault)
 		tprintln(t(), termbox.ColorLightGreen)
 		return 0
 	} else if cmds[0] == "get" {
@@ -331,11 +331,11 @@ func processInput(input string, client *kvraft.Clerk) int {
 		}) {
 			return -1
 		}
-		tprint("	Key ", termbox.ColorDefault)
+		tprint("    Key ", termbox.ColorDefault)
 		tprint("\""+cmds[1]+"\"", termbox.ColorGreen)
 		tprint(" Val ", termbox.ColorDefault)
 		tprintln("\""+v+"\"", termbox.ColorLightBlue)
-		tprint("	Get OK -- ", termbox.ColorDefault)
+		tprint("    Get OK -- ", termbox.ColorDefault)
 		tprintln(t(), termbox.ColorLightGreen)
 		// println("Key", colorGreen, "\""+cmds[1]+"\"", colorReset, "Val", colorBlue, "\""+v+"\"", colorReset)
 		return 1
@@ -354,8 +354,8 @@ func printHelp() {
 	tprintln("get [key]            - get value", termbox.ColorYellow)
 	tprintln("exit                 - exit", termbox.ColorYellow)
 	tprintln("Examples:", termbox.ColorYellow)
-	tprintln("	put a b", termbox.ColorYellow)
-	tprintln("	append a \"b c\"", termbox.ColorYellow)
+	tprintln("  put a b", termbox.ColorYellow)
+	tprintln("  append a \"b c\"", termbox.ColorYellow)
 	tprintln("", termbox.ColorYellow)
 }
 
