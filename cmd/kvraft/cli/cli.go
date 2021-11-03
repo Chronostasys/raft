@@ -1,25 +1,45 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Chronostasys/raft"
 	"github.com/Chronostasys/raft/kvraft"
+	"github.com/nsf/termbox-go"
 )
 
-const (
-	colorReset  = "\033[0m"
-	colorRed    = "\033[31m"
-	colorGreen  = "\033[32m"
-	colorYellow = "\033[33m"
-	colorBlue   = "\033[34m"
-	colorPurple = "\033[35m"
-	colorCyan   = "\033[36m"
-	colorWhite  = "\033[37m"
+var (
+	x = 0
+	y = 0
 )
+
+func scrollDown() {
+	w, h := termbox.Size()
+
+	for x := 0; x < w; x++ {
+		for y := 0; y < h; y++ {
+			if y == h-1 {
+				termbox.SetCell(x, y, ' ', termbox.ColorDefault, termbox.ColorDefault)
+			} else {
+				cell := termbox.GetCell(x, y+1)
+				termbox.SetCell(x, y, cell.Ch, cell.Fg, cell.Bg)
+			}
+		}
+	}
+	y--
+}
+func checkHeight() {
+	termbox.Flush()
+	_, wy := termbox.Size()
+	if y >= wy {
+
+		scrollDown()
+		termbox.Flush()
+	}
+}
 
 func main() {
 	ends := os.Args[1:]
@@ -33,87 +53,264 @@ func main() {
 	}
 	rpcends := raft.MakeRPCEnds(ends)
 	client := kvraft.MakeClerk(rpcends)
-	writer := bufio.NewWriter(os.Stdout)
-	reader := bufio.NewReader(os.Stdin)
+	hisID := 0
+	history := []string{}
+	commands := []string{
+		"help",
+		"exit",
+		"append",
+		"get",
+		"put",
+	}
+	setCur := func() {
+		termbox.SetCursor(x, y)
+		termbox.Flush()
+	}
+	err := termbox.Init()
+	if err != nil {
+		panic(err)
+	}
+	defer termbox.Close()
 	for {
-		_, err := writer.WriteString("cli> ")
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+		checkHeight()
+		x = 0
+		lead := "cli> "
+		for _, v := range lead {
+			termbox.SetCell(x, y, v, termbox.ColorLightGray, termbox.ColorDefault)
+			x++
 		}
-		err = writer.Flush()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+		termbox.Flush()
 		// Read the keyboad input.
-		input, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		input = strings.Trim(input, "\n\r ")
-		if len(strings.Trim(input, " ")) == 0 {
-			continue
-		}
-		if input == "help" {
-			printHelp()
-			continue
-		}
-		cc := strings.Split(input, "\"")
-		cmds := []string{}
-		for i, v := range cc {
-			if i%2 == 0 {
-				v = strings.Trim(v, " ")
-				if len(v) == 0 {
+		line := ""
+	READLINE:
+		for {
+			setCur()
+			ev := termbox.PollEvent()
+			switch ev.Type {
+
+			case termbox.EventKey:
+				switch ev.Key {
+				case termbox.KeyTab:
+					for _, v := range commands {
+						if len(v) > len(line) && v[:len(line)] == line {
+							line = v
+							x = 5
+							for i, v := range line {
+								if strings.Contains(line[:i], " ") {
+									termbox.SetCell(5+i, y, v, termbox.ColorGreen, termbox.ColorDefault)
+								} else {
+									termbox.SetCell(5+i, y, v, termbox.ColorLightBlue, termbox.ColorDefault)
+								}
+								x++
+							}
+							break
+						}
+					}
+					line += " "
+					termbox.SetCell(x, y, ' ', termbox.ColorDefault, termbox.ColorDefault)
+					x++
 					continue
+
+				case termbox.KeyEsc:
+					return
+				case termbox.KeyEnter:
+					history = append(history, line)
+					hisID = len(history)
+					y++
+					println()
+
+					n := processInput(line, client)
+					if n == -1 {
+						return
+					}
+					break READLINE
+				case termbox.KeyBackspace, termbox.KeyBackspace2:
+					if x <= 5 {
+						continue
+					}
+					x--
+					for i, v := range line[x-4:] {
+						termbox.SetChar(x+i, y, v)
+					}
+					termbox.SetChar(4+len(line), y, ' ')
+					line = line[:x-5] + line[x-4:]
+				case termbox.KeyArrowLeft:
+					if x-5 > 0 {
+						x--
+					}
+				case termbox.KeyArrowRight:
+					if x-5 < len(line) {
+						x++
+					}
+				case termbox.KeyArrowUp:
+					if hisID == 0 {
+						continue
+					}
+					if hisID == len(history) && len(strings.Trim(line, " ")) != 0 {
+						history = append(history, line)
+					}
+					hisID--
+					for i := range line {
+						termbox.SetChar(5+i, y, ' ')
+					}
+					line = history[hisID]
+					for i, v := range line {
+						if strings.Contains(line[:i], " ") {
+							termbox.SetCell(5+i, y, v, termbox.ColorGreen, termbox.ColorDefault)
+						} else {
+							termbox.SetCell(5+i, y, v, termbox.ColorLightBlue, termbox.ColorDefault)
+						}
+					}
+					x = 5
+				case termbox.KeyArrowDown:
+					if hisID >= len(history)-1 {
+						continue
+					}
+					hisID++
+					for i := range line {
+						termbox.SetChar(5+i, y, ' ')
+					}
+					line = history[hisID]
+					for i, v := range line {
+						if strings.Contains(line[:i], " ") {
+							termbox.SetCell(5+i, y, v, termbox.ColorGreen, termbox.ColorDefault)
+						} else {
+							termbox.SetCell(5+i, y, v, termbox.ColorLightBlue, termbox.ColorDefault)
+						}
+					}
+					x = 5
+				case termbox.KeyCtrlC, termbox.KeyCtrlZ:
+					return
+				default:
+					if ev.Key == termbox.KeySpace {
+						ev.Ch = ' '
+					}
+					if strings.Contains(line[:x-5], " ") {
+						termbox.SetCell(x, y, ev.Ch, termbox.ColorGreen, termbox.ColorDefault)
+					} else {
+						termbox.SetCell(x, y, ev.Ch, termbox.ColorLightBlue, termbox.ColorDefault)
+					}
+					x++
+					line = line[:x-6] + string(ev.Ch) + line[x-6:]
+					for i, v := range line[x-5:] {
+						if strings.Contains(line[:x-5+i], " ") {
+							termbox.SetCell(x+i, y, v, termbox.ColorGreen, termbox.ColorDefault)
+						} else {
+							termbox.SetCell(x+i, y, v, termbox.ColorLightBlue, termbox.ColorDefault)
+						}
+					}
+					setCur()
+					termbox.Flush()
 				}
-				cmds = append(cmds, strings.Split(v, " ")...)
-			} else {
-				cmds = append(cmds, v)
-			}
-		}
-		if cmds[0] == "exit" {
-			return
-		}
-		if cmds[0] == "append" {
-			if len(cmds) != 3 {
-				println(colorRed, "invalid input", input, colorReset)
-				printHelp()
+			case termbox.EventError:
+				return
+			default:
 				continue
 			}
-			client.Append(strings.Trim(cmds[1], "\""), strings.Trim(cmds[2], "\""))
-		} else if cmds[0] == "put" {
-			if len(cmds) != 3 {
-				println(colorRed, "invalid input", input, colorReset)
-				printHelp()
-				continue
-			}
-			client.Put(strings.Trim(cmds[1], "\""), strings.Trim(cmds[2], "\""))
-		} else if cmds[0] == "get" {
-			if len(cmds) != 2 {
-				println(colorRed, "invalid input", input, colorReset)
-				printHelp()
-				continue
-			}
-			v := client.Get(strings.Trim(cmds[1], "\""))
-			println("Key", colorGreen, "\""+cmds[1]+"\"", colorReset, "Val", colorBlue, "\""+v+"\"", colorReset)
-		} else {
-			println(colorRed, "Unknown command:", cmds[0], colorReset)
-			printHelp()
 		}
 	}
 }
 
+func tprintln(s string, color termbox.Attribute) {
+	tprint(s, color)
+	x = 0
+	y++
+}
+func tprint(s string, color termbox.Attribute) {
+	checkHeight()
+	for _, v := range s {
+		termbox.SetCell(x, y, v, color, termbox.ColorDefault)
+		x++
+	}
+}
+
+func processInput(input string, client *kvraft.Clerk) int {
+	x = 0
+	input = strings.Trim(input, "\n\r ")
+	if len(strings.Trim(input, " ")) == 0 {
+		return 0
+	}
+	if input == "help" {
+		printHelp()
+		return 10
+	}
+	cc := strings.Split(input, "\"")
+	cmds := []string{}
+	for i, v := range cc {
+		if i%2 == 0 {
+			v = strings.Trim(v, " ")
+			if len(v) == 0 {
+				continue
+			}
+			cmds = append(cmds, strings.Split(v, " ")...)
+		} else {
+			cmds = append(cmds, v)
+		}
+	}
+	if cmds[0] == "exit" {
+		return -1
+	}
+	if cmds[0] == "append" {
+		if len(cmds) != 3 {
+			tprintln("invalid input "+input, termbox.ColorRed)
+			printHelp()
+			return 11
+		}
+		t := elapsed()
+		client.Append(strings.Trim(cmds[1], "\""), strings.Trim(cmds[2], "\""))
+		tprint("	Append OK -- ", termbox.ColorDefault)
+		tprintln(t(), termbox.ColorLightGreen)
+		return 0
+	} else if cmds[0] == "put" {
+		if len(cmds) != 3 {
+			tprintln("invalid input "+input, termbox.ColorRed)
+			printHelp()
+			return 11
+		}
+		t := elapsed()
+		client.Put(strings.Trim(cmds[1], "\""), strings.Trim(cmds[2], "\""))
+		tprint("	Put OK -- ", termbox.ColorDefault)
+		tprintln(t(), termbox.ColorLightGreen)
+		return 0
+	} else if cmds[0] == "get" {
+		if len(cmds) != 2 {
+			tprintln("invalid input "+input, termbox.ColorRed)
+			printHelp()
+			return 11
+		}
+		t := elapsed()
+		v := client.Get(strings.Trim(cmds[1], "\""))
+		tprint("	Key ", termbox.ColorDefault)
+		tprint("\""+cmds[1]+"\"", termbox.ColorGreen)
+		tprint(" Val ", termbox.ColorDefault)
+		tprintln("\""+v+"\"", termbox.ColorLightBlue)
+		tprint("	Get OK -- ", termbox.ColorDefault)
+		tprintln(t(), termbox.ColorLightGreen)
+		// println("Key", colorGreen, "\""+cmds[1]+"\"", colorReset, "Val", colorBlue, "\""+v+"\"", colorReset)
+		return 1
+	} else {
+		tprintln("Unknown command: "+cmds[0], termbox.ColorRed)
+		printHelp()
+		return 11
+	}
+}
+
 func printHelp() {
-	println(colorYellow)
-	println("---------------help-----------------")
-	println("append [key] [value] - append value")
-	println("put [key] [value]    - update value")
-	println("get [key]            - get value")
-	println("exit                 - exit")
-	println("Examples:")
-	println("	put a b")
-	println("	append a \"b c\"")
-	println(colorReset)
+	tprintln("", termbox.ColorYellow)
+	tprintln("---------------help-----------------", termbox.ColorYellow)
+	tprintln("append [key] [value] - append value", termbox.ColorYellow)
+	tprintln("put [key] [value]    - update value", termbox.ColorYellow)
+	tprintln("get [key]            - get value", termbox.ColorYellow)
+	tprintln("exit                 - exit", termbox.ColorYellow)
+	tprintln("Examples:", termbox.ColorYellow)
+	tprintln("	put a b", termbox.ColorYellow)
+	tprintln("	append a \"b c\"", termbox.ColorYellow)
+	tprintln("", termbox.ColorYellow)
+}
+
+func elapsed() func() string {
+	start := time.Now()
+	return func() string {
+		return fmt.Sprintf("%v", time.Since(start))
+	}
 }
