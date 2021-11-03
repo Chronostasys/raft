@@ -12,9 +12,40 @@ import (
 )
 
 var (
-	x = 0
-	y = 0
+	x    = 0
+	y    = 0
+	evCh = make(chan termbox.Event)
 )
+
+func dojob(job func()) bool {
+	errCh := make(chan struct{})
+	doneCh := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case ev := <-evCh:
+				if ev.Type == termbox.EventKey && (ev.Key == termbox.KeyCtrlC || ev.Key == termbox.KeyCtrlZ) {
+					close(errCh)
+					return
+				}
+			case <-doneCh:
+				close(errCh)
+				return
+			}
+		}
+	}()
+	go func() {
+		job()
+		close(doneCh)
+	}()
+	select {
+	case <-doneCh:
+		return true
+	case <-errCh:
+		return false
+
+	}
+}
 
 func scrollDown() {
 	w, h := termbox.Size()
@@ -71,6 +102,13 @@ func main() {
 		panic(err)
 	}
 	defer termbox.Close()
+
+	go func() {
+		for {
+			ev := termbox.PollEvent()
+			evCh <- ev
+		}
+	}()
 	for {
 		checkHeight()
 		x = 0
@@ -85,7 +123,7 @@ func main() {
 	READLINE:
 		for {
 			setCur()
-			ev := termbox.PollEvent()
+			ev := <-evCh
 			switch ev.Type {
 
 			case termbox.EventKey:
@@ -257,7 +295,11 @@ func processInput(input string, client *kvraft.Clerk) int {
 			return 11
 		}
 		t := elapsed()
-		client.Append(strings.Trim(cmds[1], "\""), strings.Trim(cmds[2], "\""))
+		if !dojob(func() {
+			client.Append(strings.Trim(cmds[1], "\""), strings.Trim(cmds[2], "\""))
+		}) {
+			return -1
+		}
 		tprint("	Append OK -- ", termbox.ColorDefault)
 		tprintln(t(), termbox.ColorLightGreen)
 		return 0
@@ -268,7 +310,11 @@ func processInput(input string, client *kvraft.Clerk) int {
 			return 11
 		}
 		t := elapsed()
-		client.Put(strings.Trim(cmds[1], "\""), strings.Trim(cmds[2], "\""))
+		if !dojob(func() {
+			client.Put(strings.Trim(cmds[1], "\""), strings.Trim(cmds[2], "\""))
+		}) {
+			return -1
+		}
 		tprint("	Put OK -- ", termbox.ColorDefault)
 		tprintln(t(), termbox.ColorLightGreen)
 		return 0
@@ -279,7 +325,12 @@ func processInput(input string, client *kvraft.Clerk) int {
 			return 11
 		}
 		t := elapsed()
-		v := client.Get(strings.Trim(cmds[1], "\""))
+		v := ""
+		if !dojob(func() {
+			v = client.Get(strings.Trim(cmds[1], "\""))
+		}) {
+			return -1
+		}
 		tprint("	Key ", termbox.ColorDefault)
 		tprint("\""+cmds[1]+"\"", termbox.ColorGreen)
 		tprint(" Val ", termbox.ColorDefault)
