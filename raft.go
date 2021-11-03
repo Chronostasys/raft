@@ -32,121 +32,6 @@ import (
 	"github.com/Chronostasys/raft/labgob"
 )
 
-// import "bytes"
-// import "../labgob"
-
-//
-// as each Raft peer becomes aware that successive log entries are
-// committed, the peer should send an ApplyMsg to the service (or
-// tester) on the same server, via the applyCh passed to Make(). set
-// CommandValid to true to indicate that the ApplyMsg contains a newly
-// committed log entry.
-//
-// in Lab 3 you'll want to send other kinds of messages (e.g.,
-// snapshots) on the applyCh; at that point you can add fields to
-// ApplyMsg, but set CommandValid to false for these other uses.
-//
-type ApplyMsg struct {
-	CommandValid bool
-	Command      interface{}
-	CommandIndex int
-	IsSnapshot   bool
-	Ch           chan struct{}
-}
-
-const (
-	follower  int64 = 0
-	candidate int64 = 1
-	leader    int64 = 2
-)
-
-type Log struct {
-	Command interface{}
-	Term    int64
-	Index   int
-}
-
-type AppendEntriesArgs struct {
-	Term         int64
-	LeaderID     int
-	PrevLogTerm  int64
-	PrevLogindex int
-	Entries      []Log
-	LeaderCommit int64
-}
-
-type AppendEntriesReply struct {
-	Term    int64
-	Success bool
-	XTerm   int64
-	Xindex  int
-	XLen    int
-}
-
-//
-// A Go object implementing a single Raft peer.
-//
-type Raft struct {
-	mu        *sync.Mutex // Lock to protect shared access to this peer's state
-	peers     []RPCEnd    // RPC end points of all peers
-	persister *Persister  // Object to hold this peer's persisted state
-	me        int         // this peer's index into peers[]
-	dead      int32       // set by Kill()
-
-	// Your data here (2A, 2B, 2C).
-	// Look at the paper's Figure 2 for a description of what
-	// state a Raft server must maintain.
-	currentTerm       int64
-	votedFor          int64 // -1 for no vote
-	commitIndex       int64
-	role              int64
-	logs              []Log
-	heartbeatCh       chan struct{}
-	applych           chan ApplyMsg
-	nextIndex         []int64
-	matchIndex        []int64
-	appendmu          []*appendMutex
-	idxmu             *sync.Mutex
-	killch            chan struct{}
-	electionChan      chan struct{}
-	lastIncludedIndex int
-	lastIncludedTerm  int64
-	logger            *log.Logger
-	debug             bool
-	l                 net.Listener
-	cache             []interface{}
-	cachemu           *sync.Mutex
-	cacheSuccCh       chan struct{}
-	cacheFailCh       chan struct{}
-	cacheidx          int
-	sendCh            chan struct{}
-
-	// public
-	MaxRaftStateSize int
-	SnapshotFunc     TakeSnapshot
-	WaitForDone      bool
-}
-
-type appendMutex struct {
-	mu    *sync.Mutex
-	queue int64
-}
-
-func (mu *appendMutex) Lock() bool {
-	qu := atomic.AddInt64(&mu.queue, 1)
-	if qu > 2 {
-		atomic.AddInt64(&mu.queue, -1)
-		return false
-	}
-	mu.mu.Lock()
-	return true
-}
-
-func (mu *appendMutex) Unlock() {
-	atomic.AddInt64(&mu.queue, -1)
-	mu.mu.Unlock()
-}
-
 type TakeSnapshot func() []byte
 
 func (rf *Raft) initLog() {
@@ -206,31 +91,9 @@ func (rf *Raft) readPersist(data []byte) {
 }
 
 //
-// example RequestVote RPC arguments structure.
-// field names must start with capital letters!
-//
-type RequestVoteArgs struct {
-	// Your data here (2A, 2B).
-	Term         int64
-	CandidateID  int64
-	LastLogIndex int
-	LastLogTerm  int64
-}
-
-//
-// example RequestVote RPC reply structure.
-// field names must start with capital letters!
-//
-type RequestVoteReply struct {
-	// Your data here (2A).
-	Term        int64
-	VoteGranted bool
-}
-
-//
 // example RequestVote RPC handler.
 //
-func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) (err error) {
+func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (2A, 2B).
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
@@ -274,7 +137,6 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) (err
 		reply.VoteGranted = true
 		rf.Log("votes for", args.CandidateID)
 	}
-	return
 }
 func (rf *Raft) applyCommits(commitIndex int64) {
 	for i := rf.commitIndex; i < commitIndex && int(i) < len(rf.logs)+rf.lastIncludedIndex; i++ {
@@ -353,7 +215,7 @@ func (rf *Raft) getHeartBeat() {
 	}
 }
 
-func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) (err error) {
+func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 	defer func() {
@@ -426,7 +288,6 @@ MERLOG:
 		reply.Success = false
 
 	}
-	return
 }
 
 func (rf *Raft) buildXParams(args *AppendEntriesArgs, reply *AppendEntriesReply) {
@@ -498,21 +359,7 @@ func (rf *Raft) sendInstallSnapshot(server int, args *InstallSnapshotArgs, reply
 	return ok
 }
 
-type InstallSnapshotArgs struct {
-	Term              int64
-	LeaderID          int
-	LastIncludedIndex int
-	LastIncludedTerm  int64
-	Data              []byte
-	Done              bool
-	Offset            int
-	Logs              []Log
-}
-type InstallSnapshotReply struct {
-	Term int64
-}
-
-func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapshotReply) (err error) {
+func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapshotReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 	defer func() {
@@ -553,7 +400,6 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 		// TODO implement 分片传输
 		log.Fatalln("not implement yet")
 	}
-	return
 }
 func (rf *Raft) appendEntries(server int, reply *AppendEntriesReply) (succ bool) {
 	locked := rf.appendmu[server].Lock()
@@ -922,8 +768,6 @@ func (rf *Raft) Log(msg ...interface{}) {
 	}
 }
 
-type jobfunc func(id int) bool
-
 // this function will execute job in parallel for every single server
 // except caller, and will return when more than half of the job returned
 // true(the job target caller is preset to true). However, some jobs may still
@@ -1153,7 +997,9 @@ func (rf *Raft) Serve(addr string) {
 	http.DefaultServeMux = mux
 	// ===========================
 	server := rpc.NewServer()
-	server.Register(rf)
+	server.RegisterName("Raft", &RaftRPCServer{
+		rf: rf,
+	})
 	server.HandleHTTP(rpc.DefaultRPCPath, rpc.DefaultDebugPath)
 
 	// ===== workaround ==========
