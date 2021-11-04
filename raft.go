@@ -402,6 +402,7 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 		log.Fatalln("not implement yet")
 	}
 }
+
 func (rf *Raft) appendEntries(server int, reply *AppendEntriesReply) (succ bool) {
 	locked := rf.appendmu[server].Lock()
 	if !locked {
@@ -449,9 +450,9 @@ START:
 		// call install snapshot and goto START
 		rf.Log("install", re)
 		// fmt.Println(rf.me, "install", server)
-		// rf.mu.Unlock()
+		rf.mu.Unlock()
 		ok := rf.sendInstallSnapshot(server, args, re)
-		// rf.mu.Lock()
+		rf.mu.Lock()
 		rf.Log("install returned", re)
 		// if install succ, modify match index and next index
 		if ok && re.Term == args.Term {
@@ -493,6 +494,7 @@ START:
 	rf.mu.Lock()
 	if !ok {
 		rf.mu.Unlock()
+		time.Sleep(100 * time.Millisecond)
 		goto START
 	}
 	if reply.Term > rf.currentTerm {
@@ -673,9 +675,9 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	return idx, int(term), isleader
 }
 func (rf *Raft) StartWithCache(command interface{}) bool {
-	if atomic.LoadInt64(&rf.role) != leader {
-		return false
-	}
+	// if atomic.LoadInt64(&rf.role) != leader {
+	// 	return false
+	// }
 	rf.cachemu.Lock()
 	rps := atomic.AddInt64(&rf.reqPer100ms, 1)
 	succCh := rf.cacheSuccCh
@@ -685,7 +687,7 @@ func (rf *Raft) StartWithCache(command interface{}) bool {
 	if rf.cacheThreshold < 100 {
 		// low latency mode
 		if rps >= 100 {
-			rf.cacheThreshold = 2 * rf.cacheThreshold
+			rf.cacheThreshold = 1000
 		}
 		_, _, succ := rf.Start(command)
 		rf.cacheidx = 0
@@ -741,10 +743,12 @@ func (rf *Raft) StartMulti(commands ...interface{}) bool {
 		} else {
 			idx = rf.lastIncludedIndex + 1
 		}
-		for _, v := range commands {
-			rf.logs = append(rf.logs, Log{Command: v, Term: term, Index: idx})
+		newlogs := make([]Log, len(commands))
+		for i, v := range commands {
+			newlogs[i] = Log{Command: v, Term: term, Index: idx}
 			idx++
 		}
+		rf.logs = append(rf.logs, newlogs...)
 		rf.persist()
 		// rf.checkAndSaveSnapshot(false)
 		rf.Log("get commands", commands)
@@ -798,7 +802,7 @@ func (rf *Raft) Log(msg ...interface{}) {
 // true(the job target caller is preset to true). However, some jobs may still
 // execute in background. All jobs are garented to execute to end
 func (rf *Raft) morethanHalf(job jobfunc) bool {
-	chsucc, chfail := make(chan struct{}, len(rf.peers)), make(chan struct{}, len(rf.peers))
+	chsucc, chfail := make(chan struct{}, len(rf.peers)+1), make(chan struct{}, len(rf.peers)+1)
 	done := false
 	mu := &sync.Mutex{}
 	defer func() {
@@ -999,6 +1003,9 @@ func Make(peers []RPCEnd, me int,
 						succCh := rf.cacheSuccCh
 						failCh := rf.cacheFailCh
 						succ := rf.StartMulti(rf.cache[:rf.cacheidx]...)
+						if rp100ms < int64(rf.cacheidx) {
+							rp100ms = int64(rf.cacheidx)
+						}
 						rf.cacheidx = 0
 						if succ {
 							close(succCh)
@@ -1008,10 +1015,14 @@ func Make(peers []RPCEnd, me int,
 							rf.cacheFailCh = make(chan struct{})
 						}
 						if rp100ms <= 100 {
+							rf.lowcount++
 							// low latency mode
-							rf.cacheThreshold = 1
+							if rf.lowcount > 5 {
+								rf.cacheThreshold = 1
+								rf.lowcount = 0
+							}
 						} else {
-							rf.cacheThreshold = int(rp100ms) * 4 / 5
+							rf.cacheThreshold = int(rp100ms)
 						}
 						if rf.cacheThreshold > len(rf.cache) {
 							rf.cacheThreshold = len(rf.cache)
@@ -1024,8 +1035,6 @@ func Make(peers []RPCEnd, me int,
 
 	return rf
 }
-
-var servemu = sync.Mutex{}
 
 func (rf *Raft) Serve(addr string) {
 	l, err := net.Listen("tcp", addr)

@@ -43,10 +43,12 @@ type KVServer struct {
 	maxraftstate int // snapshot if log grows this big
 
 	// Your definitions here.
-	data  map[string]string
-	rwmu  *sync.RWMutex
-	idmap clientMap
-	l     net.Listener
+	data    map[string]string
+	rwmu    *sync.RWMutex
+	idmap   clientMap
+	l       net.Listener
+	encodeM map[[16]byte]*ReqStatusMap
+	encMu   *sync.RWMutex
 }
 
 type reqsignal struct {
@@ -62,7 +64,7 @@ type ReqStatus struct {
 }
 
 type ReqStatusMap struct {
-	M         map[int64]ReqStatus
+	M         map[int64]bool
 	SuccMaxID int64
 }
 
@@ -77,30 +79,7 @@ type clientMap struct {
 	mu *sync.RWMutex
 }
 
-func (kv *KVServer) cm2map() map[[16]byte]ReqStatusMap {
-	mu := kv.idmap.mu
-	mu.RLock()
-	defer mu.RUnlock()
-	m := map[[16]byte]ReqStatusMap{}
-	for k, v := range kv.idmap.m {
-		m1 := map[int64]ReqStatus{}
-		mu1 := v.mu
-		mu1.RLock()
-		for k1, v1 := range v.m {
-			m1[k1] = ReqStatus{
-				Err:  v1.err,
-				Done: v1.done,
-			}
-		}
-		mu1.RUnlock()
-		m[k] = ReqStatusMap{
-			M:         m1,
-			SuccMaxID: v.succMaxID,
-		}
-	}
-	return m
-}
-func (kv *KVServer) map2cm(m map[[16]byte]ReqStatusMap) {
+func (kv *KVServer) map2cm(m map[[16]byte]*ReqStatusMap) {
 	kv.idmap = clientMap{
 		m:  map[[16]byte]*reqMap{},
 		mu: &sync.RWMutex{},
@@ -114,10 +93,10 @@ func (kv *KVServer) map2cm(m map[[16]byte]ReqStatusMap) {
 			succMaxID: v.SuccMaxID,
 		}
 		m1.mu.Lock()
-		for k1, v1 := range v.M {
+		for k1 := range v.M {
 			m1.m[k1] = &reqsignal{
-				err:  v1.Err,
-				done: v1.Done,
+				err:  "",
+				done: true,
 				ch:   make(chan struct{}),
 				once: &sync.Once{},
 			}
@@ -308,8 +287,6 @@ func (kv *KVServer) killed() bool {
 	return z == 1
 }
 
-var servemu = sync.Mutex{}
-
 func (kv *KVServer) Serve(addr string) {
 
 	l, err := net.Listen("tcp", addr)
@@ -338,13 +315,16 @@ func (kv *KVServer) loadSnapshot(state []byte) {
 	}
 	r := bytes.NewBuffer(state)
 	d := labgob.NewDecoder(r)
-	m := map[[16]byte]ReqStatusMap{}
+	m := map[[16]byte]*ReqStatusMap{}
 	kv.rwmu.Lock()
 	if d.Decode(&kv.data) != nil ||
 		d.Decode(&m) != nil {
 		log.Fatalln("read snapshot err")
 	}
 	kv.rwmu.Unlock()
+	kv.encMu.Lock()
+	kv.encodeM = m
+	kv.encMu.Unlock()
 	kv.map2cm(m)
 }
 
@@ -383,6 +363,8 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 			m:  make(map[[16]byte]*reqMap),
 			mu: &sync.RWMutex{},
 		},
+		encMu:   &sync.RWMutex{},
+		encodeM: map[[16]byte]*ReqStatusMap{},
 	}
 	kv.me = me
 	kv.maxraftstate = maxraftstate
@@ -400,8 +382,12 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 		kv.rwmu.RLock()
 		e.Encode(kv.data)
 		kv.rwmu.RUnlock()
-		m := kv.cm2map()
-		e.Encode(m)
+		kv.encMu.RLock()
+		e.Encode(kv.encodeM)
+		// for _, v := range kv.encodeM {
+		// 	fmt.Println(v.SuccMaxID, v.M)
+		// }
+		kv.encMu.RUnlock()
 		data := w.Bytes()
 		return data
 	}
@@ -456,6 +442,29 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 				sig.done = true
 				// compress succ results
 				if len(sig.err) == 0 {
+					kv.encMu.Lock()
+					if _, ext := kv.encodeM[op.ClientID]; !ext {
+						kv.encodeM[op.ClientID] = &ReqStatusMap{
+							M: map[int64]bool{
+								op.ReqID: true,
+							},
+						}
+					} else {
+						if !kv.encodeM[op.ClientID].M[op.ReqID] && op.ReqID > kv.encodeM[op.ClientID].SuccMaxID {
+							kv.encodeM[op.ClientID].M[op.ReqID] = true
+							c := kv.encodeM[op.ClientID].SuccMaxID + 1
+							for {
+								if kv.encodeM[op.ClientID].M[c] {
+									delete(kv.encodeM[op.ClientID].M, c)
+									kv.encodeM[op.ClientID].SuccMaxID = c
+								} else {
+									break
+								}
+								c++
+							}
+						}
+					}
+					kv.encMu.Unlock()
 					i := reqmap.succMaxID + 1
 					for {
 

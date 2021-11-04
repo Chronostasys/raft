@@ -40,6 +40,7 @@ ELECTION:
 				break ELECTION
 			}
 		}
+		time.Sleep(time.Millisecond * 100)
 	}
 	wg := sync.WaitGroup{}
 	wg.Add(b.N)

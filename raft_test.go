@@ -1,6 +1,8 @@
 package raft
 
 import (
+	"net/http"
+	_ "net/http/pprof"
 	"testing"
 	"time"
 )
@@ -90,6 +92,7 @@ func BenchmarkRaftStart(b *testing.B) {
 		go rfs[i].Serve(ends[i])
 	}
 	leaderid := 0
+	go http.ListenAndServe(":9909", nil)
 ELECTION:
 	for {
 		for i, v := range rfs {
@@ -98,6 +101,7 @@ ELECTION:
 				break ELECTION
 			}
 		}
+		time.Sleep(time.Millisecond * 100)
 	}
 	b.StartTimer()
 	iter := 1000000

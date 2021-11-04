@@ -7,6 +7,9 @@ import (
 	"strconv"
 	"syscall"
 
+	"net/http"
+	_ "net/http/pprof"
+
 	"github.com/Chronostasys/raft"
 	"github.com/Chronostasys/raft/kvraft"
 )
@@ -28,8 +31,11 @@ func main() {
 	ends := os.Args[2:]
 	rpcends := raft.MakeRPCEnds(ends)
 	me, _ := strconv.Atoi(os.Args[1])
-	kv := kvraft.StartKVServer(rpcends, me, raft.MakrRealPersister(me), 1000)
+	kv := kvraft.StartKVServer(rpcends, me, raft.MakrRealPersister(me), 10000)
 	go kv.Serve(ends[me])
+	if len(os.Args) == 6 {
+		go http.ListenAndServe(":9909", nil)
+	}
 	println("start serving at", ends[me])
 	println("persist data position:", fmt.Sprintf("%d.rast", me))
 	println("ctrl+c to shutdown")
