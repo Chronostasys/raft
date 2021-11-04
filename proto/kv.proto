@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+option go_package = "/pb";
+
+message PutAppendArgs {
+    string key = 1;
+    string value = 2;
+    string op = 3;
+    bytes client_id = 4;
+    int64 req_id = 5;
+}
+message GetArgs {
+    string key = 1;
+    bytes client_id = 2;
+    int64 req_id = 3;
+}
+
+message GetReply {
+    string err = 1;
+    string value = 2;
+}
+
+message PutAppendReply {
+    string err = 1;
+}
+
+service KVService {
+    rpc PutAppend (PutAppendArgs) returns (PutAppendReply);
+    rpc Get (GetArgs) returns (GetReply);
+}

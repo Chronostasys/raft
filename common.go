@@ -1,10 +1,15 @@
 package raft
 
 import (
+	"bytes"
+	"context"
 	"log"
 	"net"
 	"sync"
 	"sync/atomic"
+
+	"github.com/Chronostasys/raft/labgob"
+	"github.com/Chronostasys/raft/pb"
 )
 
 type ApplyMsg struct {
@@ -147,18 +152,50 @@ type InstallSnapshotReply struct {
 type jobfunc func(id int) bool
 
 type RaftRPCServer struct {
+	pb.UnimplementedRaftServiceServer
 	Rf *Raft
 }
 
-func (rf *RaftRPCServer) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapshotReply) (err error) {
-	rf.Rf.InstallSnapshot(args, reply)
+func gobEncode(i interface{}) []byte {
+	w := new(bytes.Buffer)
+	e := labgob.NewEncoder(w)
+	e.Encode(i)
+	return w.Bytes()
+}
+func gobDecode(b []byte, i interface{}) {
+	r := bytes.NewBuffer(b)
+	d := labgob.NewDecoder(r)
+	d.Decode(i)
+}
+
+func (rf *RaftRPCServer) InstallSnapshot(ctx context.Context, args *pb.GobMessage) (repl *pb.GobMessage, err error) {
+	a := &InstallSnapshotArgs{}
+	gobDecode(args.GetMsg(), a)
+	re := &InstallSnapshotReply{}
+	rf.Rf.InstallSnapshot(a, re)
+
+	repl = &pb.GobMessage{
+		Msg: gobEncode(re),
+	}
 	return
 }
-func (rf *RaftRPCServer) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) (err error) {
-	rf.Rf.AppendEntries(args, reply)
+func (rf *RaftRPCServer) AppendEntries(ctx context.Context, args *pb.GobMessage) (repl *pb.GobMessage, err error) {
+	a := &AppendEntriesArgs{}
+	gobDecode(args.GetMsg(), a)
+	re := &AppendEntriesReply{}
+	rf.Rf.AppendEntries(a, re)
+	repl = &pb.GobMessage{
+		Msg: gobEncode(re),
+	}
 	return
 }
-func (rf *RaftRPCServer) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) (err error) {
-	rf.Rf.RequestVote(args, reply)
+func (rf *RaftRPCServer) RequestVote(ctx context.Context, args *pb.GobMessage) (repl *pb.GobMessage, err error) {
+	a := &RequestVoteArgs{}
+	gobDecode(args.GetMsg(), a)
+	re := &RequestVoteReply{}
+	rf.Rf.RequestVote(a, re)
+	repl = &pb.GobMessage{
+		Msg: gobEncode(re),
+	}
 	return
 }

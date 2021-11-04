@@ -4,14 +4,14 @@ import (
 	"bytes"
 	"log"
 	"net"
-	"net/http"
-	"net/rpc"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/Chronostasys/raft"
 	"github.com/Chronostasys/raft/labgob"
+	"github.com/Chronostasys/raft/pb"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -209,7 +209,7 @@ func (kv *KVServer) checkLeader() bool {
 	return isleader
 }
 
-func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
+func (kv *KVServer) Get(args *pb.GetArgs, reply *pb.GetReply) {
 	// Your code here.
 	if kv.killed() {
 		reply.Err = "killed"
@@ -218,13 +218,15 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 		reply.Err = ErrWrongLeader
 		return
 	}
-	sig, _ := kv.idmap.get(args.ClientID).get(args.ReqID)
-	ok := kv.rf.StartWithCache(Op{Args: *args, ClientID: args.ClientID, ReqID: args.ReqID})
+	id := [16]byte{}
+	copy(id[:], args.ClientId)
+	sig, _ := kv.idmap.get(id).get(args.ReqId)
+	ok := kv.rf.StartWithCache(Op{Args: GetArgs{Key: args.Key}, ClientID: id, ReqID: args.ReqId})
 	// fmt.Println("start get", args.ClientID, args.ReqID)
 	if ok {
 		select {
 		case <-sig.ch:
-			reply.Err = sig.err
+			reply.Err = string(sig.err)
 		case <-time.After(2 * time.Second):
 			reply.Err = "time out"
 		}
@@ -245,7 +247,9 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 	}
 }
 
-func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
+func (kv *KVServer) PutAppend(args *pb.PutAppendArgs, reply *pb.PutAppendReply) {
+	// bs, _ := json.Marshal(args)
+	// fmt.Println(string(bs))
 	// Your code here.
 	if kv.killed() {
 		reply.Err = "killed"
@@ -254,17 +258,19 @@ func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 		reply.Err = ErrWrongLeader
 		return
 	}
-	sig, _ := kv.idmap.get(args.ClientID).get(args.ReqID)
+	id := [16]byte{}
+	copy(id[:], args.ClientId)
+	sig, _ := kv.idmap.get(id).get(args.ReqId)
 	// fmt.Println("leader")
 	// sig.mu.Lock()
 	// defer sig.mu.Unlock()
 	// fmt.Println("before start pa", args.ClientID, args.ReqID, args.Value, kv.checkLeader())
-	ok := kv.rf.StartWithCache(Op{Args: *args, ClientID: args.ClientID, ReqID: args.ReqID})
+	ok := kv.rf.StartWithCache(Op{Args: PutAppendArgs{Key: args.Key, Value: args.Value, Op: args.Op}, ClientID: id, ReqID: args.ReqId})
 	// fmt.Println("start pa", args.ClientID, args.ReqID)
 	if ok {
 		select {
 		case <-sig.ch:
-			reply.Err = sig.err
+			reply.Err = string(sig.err)
 		case <-time.After(2 * time.Second):
 			reply.Err = "time out"
 		}
@@ -305,32 +311,21 @@ func (kv *KVServer) killed() bool {
 var servemu = sync.Mutex{}
 
 func (kv *KVServer) Serve(addr string) {
-	servemu.Lock()
 
-	// ===== workaround ==========
-	oldMux := http.DefaultServeMux
-	mux := http.NewServeMux()
-	http.DefaultServeMux = mux
-	// ===========================
-	server := rpc.NewServer()
-	server.RegisterName("KVServer", &KVRPCServer{
-		kv: kv,
-	})
-	server.RegisterName("Raft", &raft.RaftRPCServer{
-		Rf: kv.rf,
-	})
-	server.HandleHTTP(rpc.DefaultRPCPath, rpc.DefaultDebugPath)
-
-	// ===== workaround ==========
-	http.DefaultServeMux = oldMux
-	// ===========================
-	servemu.Unlock()
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
 	kv.l = l
-	http.Serve(l, mux)
+	server := grpc.NewServer()
+
+	pb.RegisterKVServiceServer(server, &KVRPCServer{
+		kv: kv,
+	})
+	pb.RegisterRaftServiceServer(server, &raft.RaftRPCServer{
+		Rf: kv.rf,
+	})
+	server.Serve(l)
 }
 func (kv *KVServer) Close() {
 	kv.Kill()
@@ -374,6 +369,10 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 	labgob.Register(raft.Log{})
 	labgob.Register(GetArgs{})
 	labgob.Register(PutAppendArgs{})
+	labgob.Register(pb.GetArgs{})
+	labgob.Register(pb.PutAppendArgs{})
+	labgob.Register(pb.GetReply{})
+	labgob.Register(pb.PutAppendReply{})
 	labgob.Register(ReqStatus{})
 	labgob.Register(ReqStatusMap{})
 
@@ -428,8 +427,9 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 			err := "raft err"
 			reqmap := kv.idmap.get(op.ClientID)
 			sig, _ := reqmap.get(op.ReqID)
+			// bs, _ := json.Marshal(op)
+			// fmt.Println(string(bs))
 			if !sig.done && op.ReqID > atomic.LoadInt64(&reqmap.succMaxID) {
-
 				switch cmd := op.Args.(type) {
 				case PutAppendArgs:
 					if cmd.Op == "Put" {

@@ -22,14 +22,14 @@ import (
 	"log"
 	"math/rand"
 	"net"
-	"net/http"
-	"net/rpc"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/Chronostasys/raft/labgob"
+	"github.com/Chronostasys/raft/pb"
+	"google.golang.org/grpc"
 )
 
 type TakeSnapshot func() []byte
@@ -1028,30 +1028,17 @@ func Make(peers []RPCEnd, me int,
 var servemu = sync.Mutex{}
 
 func (rf *Raft) Serve(addr string) {
-	servemu.Lock()
-
-	// ===== workaround ==========
-	oldMux := http.DefaultServeMux
-	mux := http.NewServeMux()
-	http.DefaultServeMux = mux
-	// ===========================
-	server := rpc.NewServer()
-	server.RegisterName("Raft", &RaftRPCServer{
-		Rf: rf,
-	})
-	server.HandleHTTP(rpc.DefaultRPCPath, rpc.DefaultDebugPath)
-
-	// ===== workaround ==========
-	http.DefaultServeMux = oldMux
-	// ===========================
-	servemu.Unlock()
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
 	rf.l = l
-	http.Serve(l, mux)
-
+	s := &RaftRPCServer{
+		Rf: rf,
+	}
+	grpcServer := grpc.NewServer()
+	pb.RegisterRaftServiceServer(grpcServer, s)
+	grpcServer.Serve(l)
 }
 
 func (rf *Raft) Close() {

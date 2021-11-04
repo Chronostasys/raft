@@ -27,3 +27,6 @@ benchmark-rf:
 
 benchmark-kv:
 	cd kvraft/ && time go test -bench=. -run=Append -benchtime=10000x
+
+pb: proto/*
+	protoc --proto_path=proto proto/*.proto --go_out=plugins=grpc:.

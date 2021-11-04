@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option go_package = "/pb";
+
+
+message GobMessage {
+    bytes msg = 1;
+}
+
+service RaftService {
+    rpc AppendEntries (GobMessage) returns (GobMessage);
+    rpc InstallSnapshot (GobMessage) returns (GobMessage);
+    rpc RequestVote (GobMessage) returns (GobMessage);
+}
+

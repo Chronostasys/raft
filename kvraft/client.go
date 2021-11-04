@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Chronostasys/raft"
+	"github.com/Chronostasys/raft/pb"
 )
 
 type Clerk struct {
@@ -59,16 +60,16 @@ func (ck *Clerk) getID() int64 {
 // arguments. and reply must be passed as a pointer.
 //
 func (ck *Clerk) Get(key string) string {
-	reply := &GetReply{}
+	reply := &pb.GetReply{}
 	id := ck.getID()
 	// You will have to modify this function.
 	for {
 		ok := ck.OneDone(func(server int, id int64) bool {
-			re := &GetReply{}
-			ok := ck.servers[server].Call("KVServer.Get", &GetArgs{
+			re := &pb.GetReply{}
+			ok := ck.servers[server].Call("KVServer.Get", &pb.GetArgs{
 				Key:      key,
-				ReqID:    id,
-				ClientID: ck.id,
+				ReqId:    id,
+				ClientId: ck.id[:],
 			}, re)
 			if ok && len(re.Err) == 0 {
 				reply = re
@@ -142,17 +143,18 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 	// You will have to modify this function.
 	for {
 		ok := ck.OneDone(func(server int, id int64) bool {
-			re := &PutAppendReply{}
-			ok := ck.servers[server].Call("KVServer.PutAppend", &PutAppendArgs{
+			re := &pb.PutAppendReply{}
+			ok := ck.servers[server].Call("KVServer.PutAppend", &pb.PutAppendArgs{
 				Key:      key,
 				Value:    value,
 				Op:       op,
-				ReqID:    id,
-				ClientID: ck.id,
+				ReqId:    id,
+				ClientId: ck.id[:],
 			}, re)
 			if ok && len(re.Err) == 0 {
 				return true
 			}
+			// fmt.Println(ok, re.Err)
 			return false
 		}, id)
 		if ok {
@@ -160,6 +162,7 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 		}
 		time.Sleep(time.Millisecond * 100)
 	}
+	// fmt.Println("done", id)
 }
 
 func (ck *Clerk) Put(key string, value string) {

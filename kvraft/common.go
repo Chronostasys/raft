@@ -1,5 +1,11 @@
 package kvraft
 
+import (
+	"context"
+
+	"github.com/Chronostasys/raft/pb"
+)
+
 const (
 	OK             = "OK"
 	ErrNoKey       = "ErrNoKey"
@@ -16,8 +22,6 @@ type PutAppendArgs struct {
 	// You'll have to add definitions here.
 	// Field names must start with capital letters,
 	// otherwise RPC will break.
-	ClientID [16]byte
-	ReqID    int64
 }
 
 type PutAppendReply struct {
@@ -27,8 +31,6 @@ type PutAppendReply struct {
 type GetArgs struct {
 	Key string
 	// You'll have to add definitions here.
-	ClientID [16]byte
-	ReqID    int64
 }
 
 type GetReply struct {
@@ -37,15 +39,18 @@ type GetReply struct {
 }
 
 type KVRPCServer struct {
+	pb.UnimplementedKVServiceServer
 	kv *KVServer
 }
 
-func (kv *KVRPCServer) Get(args *GetArgs, reply *GetReply) (err error) {
+func (kv *KVRPCServer) Get(ctx context.Context, args *pb.GetArgs) (reply *pb.GetReply, err error) {
+	reply = &pb.GetReply{}
 	kv.kv.Get(args, reply)
 	return
 }
 
-func (kv *KVRPCServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) (err error) {
+func (kv *KVRPCServer) PutAppend(ctx context.Context, args *pb.PutAppendArgs) (reply *pb.PutAppendReply, err error) {
+	reply = &pb.PutAppendReply{}
 	kv.kv.PutAppend(args, reply)
 	return
 }
