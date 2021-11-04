@@ -248,10 +248,11 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		} else {
 			reply.Success = false
 		}
-		rf.Log("received heart beat", args.LeaderID)
+		rf.Log("received heart beat", args.LeaderCommit, args.LeaderID)
 		return
 	}
 	// command logs
+	// fmt.Println(rf.me, rf.currentTerm, "appentry", len(args.Entries))
 	rf.Log("start cmd log")
 	if rf.role == leader {
 		return
@@ -672,16 +673,19 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	return idx, int(term), isleader
 }
 func (rf *Raft) StartWithCache(command interface{}) bool {
-	rps := atomic.AddInt64(&rf.reqPer100ms, 1)
+	if atomic.LoadInt64(&rf.role) != leader {
+		return false
+	}
 	rf.cachemu.Lock()
+	rps := atomic.AddInt64(&rf.reqPer100ms, 1)
 	succCh := rf.cacheSuccCh
 	failCh := rf.cacheFailCh
 	rf.cache[rf.cacheidx] = command
 	rf.cacheidx++
-	if rf.cacheThreshold == 1 {
+	if rf.cacheThreshold < 100 {
 		// low latency mode
 		if rps >= 100 {
-			rf.cacheThreshold = 100
+			rf.cacheThreshold = 2 * rf.cacheThreshold
 		}
 		_, _, succ := rf.Start(command)
 		rf.cacheidx = 0
