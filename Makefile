@@ -30,3 +30,6 @@ benchmark-kv:
 
 pb: proto/*
 	protoc --proto_path=proto proto/*.proto --go_out=plugins=grpc:.
+
+ci-test:
+	go test ./... -run="2A|2B|2C|3A|3B" -gcflags=all=-l -coverprofile=coverage.txt

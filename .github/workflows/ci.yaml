@@ -27,7 +27,7 @@ jobs:
       - name: Build
         run: go build -v ./...
       - name: Test
-        run: go test ./... -gcflags=all=-l -coverprofile=coverage.txt
+        run: make ci-test
 
       - name: CodeCov
         run: bash <(curl -s https://codecov.io/bash)
