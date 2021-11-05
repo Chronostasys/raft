@@ -2,6 +2,7 @@ package kvraft
 
 import (
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -11,6 +12,9 @@ import (
 )
 
 func TestRealServer(t *testing.T) {
+	if len(os.Getenv("CI")) > 0 {
+		t.SkipNow()
+	}
 	ends := []string{":1234", ":1235", ":1236"}
 	rpcends := raft.MakeRPCEnds(ends)
 	servers := make([]*KVServer, len(ends))
@@ -51,6 +55,9 @@ func BenchmarkAppend(b *testing.B) {
 }
 
 func benchmarkOp(benchfunc func(client *Clerk), b *testing.B, startServer bool) {
+	if len(os.Getenv("CI")) > 0 {
+		b.SkipNow()
+	}
 	ends := []string{":1234", ":1235", ":1236"}
 	rpcends := raft.MakeRPCEnds(ends)
 	ext := raw_connect("", ends)
