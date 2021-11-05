@@ -18,6 +18,12 @@ func TestRealServer(t *testing.T) {
 		servers[i] = StartKVServer(rpcends, i, raft.MakePersister(), 10000)
 		go servers[i].Serve(ends[i])
 	}
+	defer func() {
+		for i := 0; i < len(ends); i++ {
+			servers[i].Close()
+		}
+		time.Sleep(time.Millisecond * 100)
+	}()
 	client := MakeClerk(rpcends)
 	client.Put("a", "b")
 	v := client.Get("a")
@@ -70,6 +76,7 @@ func benchmarkOp(benchfunc func(client *Clerk), b *testing.B, startServer bool) 
 			for i := 0; i < len(ends); i++ {
 				servers[i].Close()
 			}
+			time.Sleep(time.Millisecond * 100)
 		}()
 	} else {
 		if !ext {
@@ -88,7 +95,6 @@ func benchmarkOp(benchfunc func(client *Clerk), b *testing.B, startServer bool) 
 	}
 	wg.Wait()
 	b.StopTimer()
-	time.Sleep(time.Millisecond * 100)
 }
 func raw_connect(host string, ports []string) bool {
 	for _, port := range ports {
