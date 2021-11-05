@@ -1,8 +1,6 @@
 package raft
 
 import (
-	"net/http"
-	_ "net/http/pprof"
 	"testing"
 	"time"
 )
@@ -17,6 +15,12 @@ func TestReal(t *testing.T) {
 		rfs[i] = Make(rpcends, i, MakePersister(), chs[i])
 		go rfs[i].Serve(ends[i])
 	}
+	defer func() {
+		for i := 0; i < len(ends); i++ {
+			rfs[i].Close()
+		}
+		time.Sleep(time.Millisecond * 100)
+	}()
 	cmd := "XXXX"
 CMD:
 	for {
@@ -91,8 +95,13 @@ func BenchmarkRaftStart(b *testing.B) {
 		}
 		go rfs[i].Serve(ends[i])
 	}
+	defer func() {
+		for i := 0; i < len(ends); i++ {
+			rfs[i].Close()
+		}
+		time.Sleep(time.Millisecond * 100)
+	}()
 	leaderid := 0
-	go http.ListenAndServe(":9909", nil)
 ELECTION:
 	for {
 		for i, v := range rfs {
