@@ -1,6 +1,8 @@
 package kvraft
 
 import (
+	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -24,37 +26,86 @@ func TestRealServer(t *testing.T) {
 	}
 }
 
+func BenchmarkGet(b *testing.B) {
+	benchmarkOp(func(client *Clerk) {
+		client.Get("a")
+	}, b, true)
+}
+
+func BenchmarkPut(b *testing.B) {
+	benchmarkOp(func(client *Clerk) {
+		client.Put("a", "b")
+	}, b, true)
+}
+
 func BenchmarkAppend(b *testing.B) {
+	benchmarkOp(func(client *Clerk) {
+		client.Append("a", "b")
+	}, b, true)
+}
+
+func benchmarkOp(benchfunc func(client *Clerk), b *testing.B, startServer bool) {
 	ends := []string{":1234", ":1235", ":1236"}
 	rpcends := raft.MakeRPCEnds(ends)
-	servers := make([]*KVServer, len(ends))
-	for i := range rpcends {
-		servers[i] = StartKVServer(rpcends, i, raft.MakePersister(), 1000)
-		go servers[i].Serve(ends[i])
+	ext := raw_connect("", ends)
+	if startServer {
+		if ext {
+			b.SkipNow()
+		}
+		servers := make([]*KVServer, len(ends))
+		for i := range rpcends {
+			servers[i] = StartKVServer(rpcends, i, raft.MakePersister(), 1000)
+			go servers[i].Serve(ends[i])
+		}
+	ELECTION:
+		for {
+			for _, v := range servers {
+				if v.checkLeader() {
+					break ELECTION
+				}
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+		defer func() {
+			for i := 0; i < len(ends); i++ {
+				servers[i].Close()
+			}
+		}()
+	} else {
+		if !ext {
+			b.SkipNow()
+		}
 	}
 	client := MakeClerk(rpcends)
-ELECTION:
-	for {
-		for _, v := range servers {
-			if v.checkLeader() {
-				break ELECTION
-			}
-		}
-		time.Sleep(time.Millisecond * 100)
-	}
 	wg := sync.WaitGroup{}
 	wg.Add(b.N)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		go func() {
-			client.Append("a", "b")
+			benchfunc(client)
 			wg.Done()
 		}()
 	}
 	wg.Wait()
 	b.StopTimer()
-	for i := 0; i < len(ends); i++ {
-		servers[i].Close()
-	}
 	time.Sleep(time.Millisecond * 100)
+}
+func raw_connect(host string, ports []string) bool {
+	for _, port := range ports {
+		timeout := time.Second
+		conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, strings.Trim(port, ":")), timeout)
+		if err != nil {
+			return false
+		}
+		if conn != nil {
+			defer conn.Close()
+		}
+	}
+	return true
+}
+
+func BenchmarkRealServer(b *testing.B) {
+	benchmarkOp(func(client *Clerk) {
+		client.Put("a", "b")
+	}, b, false)
 }

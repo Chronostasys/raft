@@ -687,7 +687,7 @@ func (rf *Raft) StartWithCache(command interface{}) bool {
 	if rf.cacheThreshold < 100 {
 		// low latency mode
 		if rps >= 100 {
-			rf.cacheThreshold = 1000
+			rf.cacheThreshold = 10000
 		}
 		_, _, succ := rf.Start(command)
 		rf.cacheidx = 0
@@ -884,7 +884,7 @@ func Make(peers []RPCEnd, me int,
 		cacheSuccCh:      make(chan struct{}),
 		cacheFailCh:      make(chan struct{}),
 		sendCh:           make(chan struct{}, 1),
-		cacheThreshold:   1000,
+		cacheThreshold:   10000,
 	}
 	for i := 0; i < len(peers); i++ {
 		rf.nextIndex[i] = 1

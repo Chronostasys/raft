@@ -431,8 +431,7 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 					}
 				case GetArgs:
 					err = ""
-					// fmt.Println(kv.me, "done get", cmd.Key, err)
-					// fmt.Println("get", kv.me, apply.CommandIndex, cmd.Key)
+					reqmap.delete(op.ReqID)
 				default:
 				}
 
