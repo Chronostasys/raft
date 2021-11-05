@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1636103984227,
+  "lastUpdate": 1636104930944,
   "repoUrl": "https://github.com/Chronostasys/raft",
   "entries": {
     "Benchmark": [
@@ -42,6 +42,48 @@ window.BENCHMARK_DATA = {
             "value": 1463075,
             "unit": "ns/op",
             "extra": "9904 times\n2 procs"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "1769712655@qq.com",
+            "name": "Chronos",
+            "username": "Chronostasys"
+          },
+          "committer": {
+            "email": "1769712655@qq.com",
+            "name": "Chronos",
+            "username": "Chronostasys"
+          },
+          "distinct": true,
+          "id": "213d2823031c304d8ad27d17a1b36f2f33f9e25f",
+          "message": "fix bench",
+          "timestamp": "2021-11-05T17:23:20+08:00",
+          "tree_id": "d51927fd10ba44a547c409d5fe18f737b5237879",
+          "url": "https://github.com/Chronostasys/raft/commit/213d2823031c304d8ad27d17a1b36f2f33f9e25f"
+        },
+        "date": 1636104930012,
+        "tool": "go",
+        "benches": [
+          {
+            "name": "BenchmarkGet",
+            "value": 523792,
+            "unit": "ns/op",
+            "extra": "6372 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkPut",
+            "value": 1442960,
+            "unit": "ns/op",
+            "extra": "6991 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkAppend",
+            "value": 233172,
+            "unit": "ns/op",
+            "extra": "12984 times\n2 procs"
           }
         ]
       }
