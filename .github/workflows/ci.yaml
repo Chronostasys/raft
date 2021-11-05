@@ -1,0 +1,33 @@
+name: Build and Test
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+    - master
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: cache
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17
+
+      - name: Build
+        run: go build -v ./...
+      - name: Test
+        run: go test ./... -gcflags=all=-l -coverprofile=coverage.txt
+
+      - name: CodeCov
+        run: bash <(curl -s https://codecov.io/bash)
