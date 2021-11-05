@@ -21,7 +21,7 @@ var mu sync.Mutex
 var errorCount int // for TestCapital
 var checked map[reflect.Type]bool
 
-const debug = false
+var debug = false
 
 type LabEncoder struct {
 	gob *gob.Encoder

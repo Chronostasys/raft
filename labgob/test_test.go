@@ -1,8 +1,10 @@
 package labgob
 
-import "testing"
-
-import "bytes"
+import (
+	"bytes"
+	"os"
+	"testing"
+)
 
 type T1 struct {
 	T1int0    int
@@ -19,6 +21,18 @@ type T2 struct {
 
 type T3 struct {
 	T3int999 int
+}
+
+func TestMain(m *testing.M) {
+	// Write code here to run before tests
+	debug = true
+	// Run tests
+	exitVal := m.Run()
+
+	// Write code here to run after tests
+
+	// Exit with exit value from tests
+	os.Exit(exitVal)
 }
 
 //
