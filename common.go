@@ -89,6 +89,7 @@ type Raft struct {
 	cacheThreshold    int
 	reqPer100ms       int64
 	lowcount          int
+	killo             sync.Once
 
 	// public
 	MaxRaftStateSize int

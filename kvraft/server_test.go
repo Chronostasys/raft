@@ -110,8 +110,20 @@ func raw_connect(host string, ports []string) bool {
 	return true
 }
 
-func BenchmarkRealServer(b *testing.B) {
+func BenchmarkRealServerPut(b *testing.B) {
 	benchmarkOp(func(client *Clerk) {
 		client.Put("a", "b")
+	}, b, false)
+}
+
+func BenchmarkRealServerAppend(b *testing.B) {
+	benchmarkOp(func(client *Clerk) {
+		client.Append("a", "b")
+	}, b, false)
+}
+
+func BenchmarkRealServerGet(b *testing.B) {
+	benchmarkOp(func(client *Clerk) {
+		client.Get("a")
 	}, b, false)
 }

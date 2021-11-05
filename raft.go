@@ -780,7 +780,9 @@ func (rf *Raft) StartMulti(commands ...interface{}) bool {
 //
 func (rf *Raft) Kill() {
 	atomic.StoreInt32(&rf.dead, 1)
-	close(rf.killch)
+	rf.killo.Do(func() {
+		close(rf.killch)
+	})
 	// Your code here, if desired.
 	rf.persister.Kill()
 }
