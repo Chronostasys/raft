@@ -61,9 +61,9 @@ func (ck *Clerk) getID() int64 {
 //
 func (ck *Clerk) Get(key string) string {
 	reply := &pb.GetReply{}
-	id := ck.getID()
 	// You will have to modify this function.
 	for {
+		id := ck.getID()
 		ok := ck.OneDone(func(server int, id int64) bool {
 			re := &pb.GetReply{}
 			ok := ck.servers[server].Call("KVServer.Get", &pb.GetArgs{

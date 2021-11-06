@@ -433,6 +433,9 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 				}
 
 			}
+			if atomic.LoadInt64(&reqmap.succMaxID) > op.ReqID {
+				reqmap.delete(op.ReqID)
+			}
 			if !sig.done && op.ReqID > atomic.LoadInt64(&reqmap.succMaxID) {
 				sig.err = Err(err)
 				sig.done = true
