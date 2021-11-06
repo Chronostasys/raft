@@ -31,7 +31,7 @@ func main() {
 	ends := os.Args[2:]
 	rpcends := raft.MakeRPCEnds(ends)
 	me, _ := strconv.Atoi(os.Args[1])
-	kv := kvraft.StartKVServer(rpcends, me, raft.MakrRealPersister(me), 100000)
+	kv := kvraft.StartKVServer(rpcends, me, raft.MakrRealPersister(me), 10000)
 	go kv.Serve(ends[me])
 	if len(os.Args) == 6 {
 		go http.ListenAndServe(os.Args[5], nil)

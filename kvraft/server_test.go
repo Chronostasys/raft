@@ -95,6 +95,7 @@ func benchmarkOp(benchfunc func(client *Clerk), b *testing.B, startServer bool) 
 	}
 	wg.Wait()
 	b.StopTimer()
+	client.Put("a", "")
 }
 func raw_connect(host string, ports []string) bool {
 	for _, port := range ports {

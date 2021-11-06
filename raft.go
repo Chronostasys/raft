@@ -139,6 +139,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	}
 }
 func (rf *Raft) applyCommits(commitIndex int64) {
+	applied := false
 	for i := rf.commitIndex; i < commitIndex && int(i) < len(rf.logs)+rf.lastIncludedIndex; i++ {
 		rf.Log("apply commit", i+1)
 		msg := ApplyMsg{
@@ -162,8 +163,9 @@ func (rf *Raft) applyCommits(commitIndex int64) {
 		}
 		// fmt.Println(rf.me, rf.logs[int(i)-rf.lastIncludedIndex].Command)
 		rf.Log("applied commit", i+1, rf.logs[int(i)-rf.lastIncludedIndex].Command)
+		applied = true
 	}
-	if rf.MaxRaftStateSize != -1 {
+	if rf.MaxRaftStateSize != -1 && applied {
 		rf.persist()
 		rf.checkAndSaveSnapshot()
 	}
@@ -804,16 +806,10 @@ func (rf *Raft) Log(msg ...interface{}) {
 // true(the job target caller is preset to true). However, some jobs may still
 // execute in background. All jobs are garented to execute to end
 func (rf *Raft) morethanHalf(job jobfunc) bool {
-	chsucc, chfail := make(chan struct{}, len(rf.peers)+1), make(chan struct{}, len(rf.peers)+1)
-	done := false
-	mu := &sync.Mutex{}
-	defer func() {
-		mu.Lock()
-		done = true
-		close(chsucc)
-		close(chfail)
-		mu.Unlock()
-	}()
+	chsucc, chfail := make(chan struct{}), make(chan struct{})
+	var half int32 = int32(len(rf.peers) / 2)
+	var succ int32
+	var fail int32
 	for i := 0; i < len(rf.peers); i++ {
 		if i != rf.me {
 			go func(id int) {
@@ -821,36 +817,27 @@ func (rf *Raft) morethanHalf(job jobfunc) bool {
 					return
 				}
 				re := job(id)
-				mu.Lock()
-				if !done {
-					if re {
-						chsucc <- struct{}{}
 
-					} else {
-						chfail <- struct{}{}
+				if re {
+					num := atomic.AddInt32(&succ, 1)
+					if num == half {
+						close(chsucc)
+					}
+				} else {
+					num := atomic.AddInt32(&fail, 1)
+					if num == half {
+						close(chfail)
 					}
 				}
-				mu.Unlock()
 			}(i)
 		}
 	}
-	succ, fail := 0, 0
-	for {
-
-		select {
-		case <-chsucc:
-			succ++
-		case <-chfail:
-			fail++
-		}
-		if succ >= len(rf.peers)/2 {
-			return true
-		}
-		if succ+fail == len(rf.peers)-1 {
-			break
-		}
+	select {
+	case <-chsucc:
+		return true
+	case <-chfail:
+		return false
 	}
-	return false
 }
 
 //
@@ -975,7 +962,7 @@ func Make(peers []RPCEnd, me int,
 									return
 								}
 								if atomic.LoadInt64(&rf.role) == leader {
-									go rf.morethanHalf(func(id int) bool {
+									rf.morethanHalf(func(id int) bool {
 										return rf.sendHeartbeat(id)
 									})
 								}

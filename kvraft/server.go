@@ -2,6 +2,7 @@ package kvraft
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"net"
 	"sync"
@@ -318,7 +319,7 @@ func (kv *KVServer) loadSnapshot(state []byte) {
 	// kv.rwmu.Lock()
 	if d.Decode(&kv.data) != nil ||
 		d.Decode(&m) != nil {
-		log.Fatalln("read snapshot err")
+		fmt.Println("read snapshot err")
 	}
 	// kv.rwmu.Unlock()
 	// kv.encMu.Lock()
@@ -382,9 +383,6 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 		// kv.rwmu.RUnlock()
 		// kv.encMu.RLock()
 		e.Encode(kv.encodeM)
-		// for _, v := range kv.encodeM {
-		// 	fmt.Println(v.SuccMaxID, v.M)
-		// }
 		// kv.encMu.RUnlock()
 		data := w.Bytes()
 		return data
