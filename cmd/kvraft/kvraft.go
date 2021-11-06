@@ -31,10 +31,10 @@ func main() {
 	ends := os.Args[2:]
 	rpcends := raft.MakeRPCEnds(ends)
 	me, _ := strconv.Atoi(os.Args[1])
-	kv := kvraft.StartKVServer(rpcends, me, raft.MakrRealPersister(me), 10000)
+	kv := kvraft.StartKVServer(rpcends, me, raft.MakrRealPersister(me), 100000)
 	go kv.Serve(ends[me])
 	if len(os.Args) == 6 {
-		go http.ListenAndServe(":9909", nil)
+		go http.ListenAndServe(os.Args[5], nil)
 	}
 	println("start serving at", ends[me])
 	println("persist data position:", fmt.Sprintf("%d.rast", me))

@@ -44,18 +44,17 @@ type KVServer struct {
 
 	// Your definitions here.
 	data    map[string]string
-	rwmu    *sync.RWMutex
 	idmap   clientMap
 	l       net.Listener
 	encodeM map[[16]byte]*ReqStatusMap
-	encMu   *sync.RWMutex
 }
 
 type reqsignal struct {
-	ch   chan struct{}
-	err  Err
-	once *sync.Once
-	done bool
+	ch     chan struct{}
+	err    Err
+	once   *sync.Once
+	done   bool
+	result string
 }
 
 type ReqStatus struct {
@@ -167,19 +166,19 @@ func (r reqMap) delete(id int64) {
 // }
 
 func (kv *KVServer) getv(key string) string {
-	kv.rwmu.RLock()
-	defer kv.rwmu.RUnlock()
+	// kv.rwmu.RLock()
+	// defer kv.rwmu.RUnlock()
 	return kv.data[key]
 }
 
 func (kv *KVServer) setv(key, val string) {
-	kv.rwmu.Lock()
-	defer kv.rwmu.Unlock()
+	// kv.rwmu.Lock()
+	// defer kv.rwmu.Unlock()
 	kv.data[key] = val
 }
 func (kv *KVServer) appendv(key, val string) {
-	kv.rwmu.Lock()
-	defer kv.rwmu.Unlock()
+	// kv.rwmu.Lock()
+	// defer kv.rwmu.Unlock()
 	kv.data[key] = kv.data[key] + val
 }
 
@@ -218,7 +217,7 @@ func (kv *KVServer) Get(args *pb.GetArgs, reply *pb.GetReply) {
 		}
 		// kv.idmap.get(args.ClientID).delete(args.ReqID)
 		if len(reply.Err) == 0 {
-			reply.Value = kv.getv(args.Key)
+			reply.Value = sig.result
 			// fmt.Println(kv.me, "get", args.Key, reply.Err, reply.Value, kv.checkLeader())
 		}
 	} else {
@@ -316,15 +315,15 @@ func (kv *KVServer) loadSnapshot(state []byte) {
 	r := bytes.NewBuffer(state)
 	d := labgob.NewDecoder(r)
 	m := map[[16]byte]*ReqStatusMap{}
-	kv.rwmu.Lock()
+	// kv.rwmu.Lock()
 	if d.Decode(&kv.data) != nil ||
 		d.Decode(&m) != nil {
 		log.Fatalln("read snapshot err")
 	}
-	kv.rwmu.Unlock()
-	kv.encMu.Lock()
+	// kv.rwmu.Unlock()
+	// kv.encMu.Lock()
 	kv.encodeM = m
-	kv.encMu.Unlock()
+	// kv.encMu.Unlock()
 	kv.map2cm(m)
 }
 
@@ -357,13 +356,12 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 	labgob.Register(ReqStatusMap{})
 
 	kv := &KVServer{
-		rwmu: &sync.RWMutex{},
+		// rwmu: &sync.RWMutex{},
 		data: make(map[string]string),
 		idmap: clientMap{
 			m:  make(map[[16]byte]*reqMap),
 			mu: &sync.RWMutex{},
 		},
-		encMu:   &sync.RWMutex{},
 		encodeM: map[[16]byte]*ReqStatusMap{},
 	}
 	kv.me = me
@@ -371,7 +369,7 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 
 	// You may need initialization code here.
 
-	kv.applyCh = make(chan raft.ApplyMsg)
+	kv.applyCh = make(chan raft.ApplyMsg, 100)
 	// load snapshot
 	kv.loadSnapshot(persister.ReadSnapshot())
 	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
@@ -379,15 +377,15 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 	kv.rf.SnapshotFunc = func() []byte {
 		w := new(bytes.Buffer)
 		e := labgob.NewEncoder(w)
-		kv.rwmu.RLock()
+		// kv.rwmu.RLock()
 		e.Encode(kv.data)
-		kv.rwmu.RUnlock()
-		kv.encMu.RLock()
+		// kv.rwmu.RUnlock()
+		// kv.encMu.RLock()
 		e.Encode(kv.encodeM)
 		// for _, v := range kv.encodeM {
 		// 	fmt.Println(v.SuccMaxID, v.M)
 		// }
-		kv.encMu.RUnlock()
+		// kv.encMu.RUnlock()
 		data := w.Bytes()
 		return data
 	}
@@ -432,6 +430,7 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 				case GetArgs:
 					err = ""
 					reqmap.delete(op.ReqID)
+					sig.result = kv.getv(cmd.Key)
 				default:
 				}
 
@@ -441,7 +440,7 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 				sig.done = true
 				// compress succ results
 				if len(sig.err) == 0 {
-					kv.encMu.Lock()
+					// kv.encMu.Lock()
 					if _, ext := kv.encodeM[op.ClientID]; !ext {
 						kv.encodeM[op.ClientID] = &ReqStatusMap{
 							M: map[int64]bool{
@@ -463,7 +462,7 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 							}
 						}
 					}
-					kv.encMu.Unlock()
+					// kv.encMu.Unlock()
 					i := reqmap.succMaxID + 1
 					for {
 

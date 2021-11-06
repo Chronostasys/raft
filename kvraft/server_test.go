@@ -127,3 +127,20 @@ func BenchmarkRealServerGet(b *testing.B) {
 		client.Get("a")
 	}, b, false)
 }
+
+func BenchmarkConcurrentMapWrite(b *testing.B) {
+	mu := sync.Mutex{}
+	m := map[int]int{}
+	wg := sync.WaitGroup{}
+	wg.Add(b.N)
+	for i := 0; i < b.N; i++ {
+		go func(i int) {
+			mu.Lock()
+			defer mu.Unlock()
+			m[i] = m[i] + i
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+
+}
