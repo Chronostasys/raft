@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +17,24 @@ var (
 	y    = 0
 	evCh = make(chan termbox.Event)
 )
+
+func readEnv() {
+	me := os.Getenv("ME")
+	eps := os.Getenv("EPS")
+	args := []string{}
+	if len(me) > 0 && len(eps) > 0 {
+		epl := strings.Split(eps, ";")
+		for i, v := range epl {
+			if strings.Contains(v, me) {
+				args = append(args, strconv.Itoa(i))
+			}
+		}
+		args = append(args, epl...)
+	}
+	if len(os.Args) == 1 {
+		os.Args = append(os.Args, args...)
+	}
+}
 
 func dojob(job func()) bool {
 	errCh := make(chan struct{})

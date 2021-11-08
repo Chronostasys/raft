@@ -385,6 +385,10 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 		// kv.rwmu.RUnlock()
 		// kv.encMu.RLock()
 		e.Encode(kv.encodeM)
+		// fmt.Println("start")
+		// for _, v := range kv.encodeM {
+		// 	fmt.Println(v)
+		// }
 		// kv.encMu.RUnlock()
 		data := w.Bytes()
 		return data
@@ -429,7 +433,7 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 					}
 				case GetArgs:
 					err = ""
-					reqmap.delete(op.ReqID)
+					// reqmap.delete(op.ReqID)
 				default:
 				}
 
