@@ -8,7 +8,6 @@ RUN make
 FROM alpine:latest
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories
 RUN apk --no-cache add ca-certificates
-COPY --from=builder /kvraft/out/kvraft/kvraft /app
-COPY --from=builder /kvraft/out/kvraft/cli /app
+COPY --from=builder /kvraft/out/kvraft/ /app/
 WORKDIR /app
 ENTRYPOINT /app/kvraft
