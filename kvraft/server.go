@@ -48,14 +48,15 @@ type KVServer struct {
 	idmap   clientMap
 	l       net.Listener
 	encodeM map[[16]byte]*ReqStatusMap
+	rwmu    *sync.RWMutex
 }
 
 type reqsignal struct {
-	ch     chan struct{}
-	err    Err
-	once   *sync.Once
-	done   bool
-	result string
+	ch   chan struct{}
+	err  Err
+	once *sync.Once
+	done bool
+	// result string
 }
 
 type ReqStatus struct {
@@ -167,19 +168,19 @@ func (r reqMap) delete(id int64) {
 // }
 
 func (kv *KVServer) getv(key string) string {
-	// kv.rwmu.RLock()
-	// defer kv.rwmu.RUnlock()
+	kv.rwmu.RLock()
+	defer kv.rwmu.RUnlock()
 	return kv.data[key]
 }
 
 func (kv *KVServer) setv(key, val string) {
-	// kv.rwmu.Lock()
-	// defer kv.rwmu.Unlock()
+	kv.rwmu.Lock()
+	defer kv.rwmu.Unlock()
 	kv.data[key] = val
 }
 func (kv *KVServer) appendv(key, val string) {
-	// kv.rwmu.Lock()
-	// defer kv.rwmu.Unlock()
+	kv.rwmu.Lock()
+	defer kv.rwmu.Unlock()
 	kv.data[key] = kv.data[key] + val
 }
 
@@ -218,7 +219,7 @@ func (kv *KVServer) Get(args *pb.GetArgs, reply *pb.GetReply) {
 		}
 		// kv.idmap.get(args.ClientID).delete(args.ReqID)
 		if len(reply.Err) == 0 {
-			reply.Value = sig.result
+			reply.Value = kv.getv(args.Key)
 			// fmt.Println(kv.me, "get", args.Key, reply.Err, reply.Value, kv.checkLeader())
 		}
 	} else {
@@ -364,6 +365,7 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 			mu: &sync.RWMutex{},
 		},
 		encodeM: map[[16]byte]*ReqStatusMap{},
+		rwmu:    &sync.RWMutex{},
 	}
 	kv.me = me
 	kv.maxraftstate = maxraftstate
@@ -428,7 +430,6 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 				case GetArgs:
 					err = ""
 					reqmap.delete(op.ReqID)
-					sig.result = kv.getv(cmd.Key)
 				default:
 				}
 
@@ -448,23 +449,15 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 								op.ReqID: true,
 							},
 						}
-					} else {
-						if !kv.encodeM[op.ClientID].M[op.ReqID] && op.ReqID > kv.encodeM[op.ClientID].SuccMaxID {
-							kv.encodeM[op.ClientID].M[op.ReqID] = true
-							c := kv.encodeM[op.ClientID].SuccMaxID + 1
-							for {
-								if kv.encodeM[op.ClientID].M[c] {
-									delete(kv.encodeM[op.ClientID].M, c)
-									kv.encodeM[op.ClientID].SuccMaxID = c
-								} else {
-									break
-								}
-								c++
-							}
-						}
+					} else if !kv.encodeM[op.ClientID].M[op.ReqID] && op.ReqID > kv.encodeM[op.ClientID].SuccMaxID {
+						kv.encodeM[op.ClientID].M[op.ReqID] = true
 					}
 					// kv.encMu.Unlock()
 					i := reqmap.succMaxID + 1
+					c := kv.encodeM[op.ClientID].SuccMaxID + 1
+					if i != c {
+						fmt.Println("fatal", i, c)
+					}
 					for {
 
 						reqmap.mu.Lock()
@@ -476,12 +469,15 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 						if el.done && len(el.err) == 0 {
 							delete(reqmap.m, i)
 							atomic.AddInt64(&reqmap.succMaxID, 1)
+							delete(kv.encodeM[op.ClientID].M, c)
+							kv.encodeM[op.ClientID].SuccMaxID++
 						} else {
 							reqmap.mu.Unlock()
 							break
 						}
 						reqmap.mu.Unlock()
 						i++
+						c++
 					}
 				}
 			} else if atomic.LoadInt64(&reqmap.succMaxID) >= op.ReqID {
