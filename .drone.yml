@@ -1,0 +1,8 @@
+kind: template
+load: basic-cd-pot.yml
+data:
+  deploy_file: deploy/k8s部署配置文件名，一般放在deploy文件夹下
+  docker_repo: registry.cn-hangzhou.aliyuncs.com/pivotstudio/raft
+  docker_registry: registry.cn-hangzhou.aliyuncs.com # 如果你使用团队的镜像仓库，这个值不用改
+  docker_user_name_secret: docker_user_name # 如果你使用团队的镜像仓库，这个值不用改
+  docker_pass_secret: docker_pass # 如果你使用团队的镜像仓库，这个值不用改
