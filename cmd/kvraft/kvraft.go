@@ -50,7 +50,7 @@ func main() {
 }
 
 func readEnv() {
-	me := os.Getenv("ME")
+	me := os.Getenv("ME") + ".kv-hs"
 	eps := os.Getenv("EPS")
 	args := []string{}
 	if len(me) > 0 && len(eps) > 0 {

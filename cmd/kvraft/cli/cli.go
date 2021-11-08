@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -19,16 +18,10 @@ var (
 )
 
 func readEnv() {
-	me := os.Getenv("ME")
 	eps := os.Getenv("EPS")
 	args := []string{}
-	if len(me) > 0 && len(eps) > 0 {
+	if len(eps) > 0 {
 		epl := strings.Split(eps, ";")
-		for i, v := range epl {
-			if strings.Contains(v, me) {
-				args = append(args, strconv.Itoa(i))
-			}
-		}
 		args = append(args, epl...)
 	}
 	if len(os.Args) == 1 {
@@ -92,6 +85,7 @@ func checkHeight() {
 }
 
 func main() {
+	readEnv()
 	ends := os.Args[1:]
 	if len(ends) == 0 {
 		println("kvraft cli")
