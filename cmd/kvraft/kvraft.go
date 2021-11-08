@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"net/http"
@@ -15,6 +16,7 @@ import (
 )
 
 func main() {
+	readEnv()
 	if len(os.Args) < 3 {
 		println("kvraft server")
 		println("A highly available kv server based on raft")
@@ -45,4 +47,22 @@ func main() {
 	kv.Kill()
 	fmt.Println("Shutting down gracefully.")
 
+}
+
+func readEnv() {
+	me := os.Getenv("ME")
+	eps := os.Getenv("EPS")
+	args := []string{}
+	if len(me) > 0 && len(eps) > 0 {
+		epl := strings.Split(eps, ";")
+		for i, v := range epl {
+			if strings.Contains(v, me) {
+				args = append(args, strconv.Itoa(i))
+			}
+		}
+		args = append(args, epl...)
+	}
+	if len(os.Args) == 1 {
+		os.Args = append(os.Args, args...)
+	}
 }

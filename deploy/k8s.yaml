@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kv-hs
+  namespace: kvrf
+  labels:
+    app: kv
+spec:
+  ports:
+  - port: 8888
+    name: server
+  clusterIP: None
+  selector:
+    app: kv
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  namespace: kvrf
+  name: kv-pdb
+spec:
+  selector:
+    matchLabels:
+      app: kv
+  maxUnavailable: 1
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kv
+  namespace: kvrf
+spec:
+  selector:
+    matchLabels:
+      app: kv
+  serviceName: kv-hs
+  replicas: 3
+  updateStrategy:
+    type: RollingUpdate
+  podManagementPolicy: OrderedReady
+  template:
+    metadata:
+      labels:
+        app: kv
+    spec:
+      containers:
+      - name: kubernetes-zookeeper
+        imagePullPolicy: Always
+        image: registry.cn-hangzhou.aliyuncs.com/pivotstudio/raft:{{.build_tag}}
+        resources:
+          requests:
+            memory: "100Mi"
+            cpu: "100m"
+        ports:
+        - containerPort: 8888
+          name: server
+        env:
+        - name: EPS
+          value: kv-0:8888;kv-1:8888;kv-2:8888
+        - name: ME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        # readinessProbe:
+        #   exec:
+        #     command:
+        #     - sh
+        #     - -c
+        #     - "zookeeper-ready 2181"
+        #   initialDelaySeconds: 10
+        #   timeoutSeconds: 5
+        # livenessProbe:
+        #   exec:
+        #     command:
+        #     - sh
+        #     - -c
+        #     - "zookeeper-ready 2181"
+        #   initialDelaySeconds: 10
+        #   timeoutSeconds: 5
+        volumeMounts:
+        - name: datadir
+          mountPath: data
+      # securityContext:
+      #   runAsUser: 1000
+      #   fsGroup: 1000
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi

@@ -44,7 +44,8 @@ func MakePersister() *Persister {
 
 func MakrRealPersister(me int) *Persister {
 	persister := &Persister{}
-	f, err := os.OpenFile(fmt.Sprintf("%d.rast", me), os.O_RDWR|os.O_APPEND|os.O_CREATE, os.FileMode(0777))
+	os.MkdirAll("data", os.ModePerm)
+	f, err := os.OpenFile(fmt.Sprintf("data/%d.rast", me), os.O_RDWR|os.O_APPEND|os.O_CREATE, os.FileMode(0777))
 	if err == nil {
 		d := labgob.NewDecoder(f)
 		d.Decode(&persister.raftstate)
@@ -52,7 +53,7 @@ func MakrRealPersister(me int) *Persister {
 	} else {
 		log.Fatal(err)
 	}
-	f1, err := os.OpenFile(fmt.Sprintf("%d-sn.rast", me), os.O_RDWR|os.O_APPEND|os.O_CREATE, os.FileMode(0777))
+	f1, err := os.OpenFile(fmt.Sprintf("data/%d-sn.rast", me), os.O_RDWR|os.O_APPEND|os.O_CREATE, os.FileMode(0777))
 	if err == nil {
 		d := labgob.NewDecoder(f)
 		d.Decode(&persister.snapshot)
