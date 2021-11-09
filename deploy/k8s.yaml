@@ -56,7 +56,7 @@ spec:
           name: server
         env:
         - name: EPS
-          value: kv-0.kv-hs:8888;kv-1.kv-hs:8888;kv-2.kv-hs:8888
+          value: kv-0.kv-hs:8888;kv-1.kv-hs:8888;kv-2.kv-hs:8888;:8889
         - name: ME
           valueFrom:
             fieldRef:

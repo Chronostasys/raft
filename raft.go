@@ -398,6 +398,7 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 		rf.commitIndex = int64(args.LastIncludedIndex)
 
 		rf.SaveSnapshot(args.Data)
+		rf.Info("installed snapshot from", args.LeaderID)
 
 	} else {
 		// TODO implement 分片传输
@@ -796,9 +797,14 @@ func (rf *Raft) killed() bool {
 
 func (rf *Raft) Log(msg ...interface{}) {
 	if rf.debug {
-		logs := append([]interface{}{rf.me, "in term", rf.currentTerm}, msg...)
+		logs := append([]interface{}{"[debug]", rf.me, "in term", rf.currentTerm}, msg...)
 		rf.logger.Println(logs...)
 	}
+}
+
+func (rf *Raft) Info(msg ...interface{}) {
+	logs := append([]interface{}{"[info]", "term", rf.currentTerm}, msg...)
+	rf.logger.Println(logs...)
 }
 
 // this function will execute job in parallel for every single server
@@ -955,6 +961,7 @@ func Make(peers []RPCEnd, me int,
 					}
 					if ok {
 						rf.Log("become leader")
+						rf.Info("become leader")
 						atomic.StoreInt64(&rf.role, leader)
 						go func() {
 							for {

@@ -3,6 +3,7 @@ package kvraft
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"sync"
@@ -157,16 +158,6 @@ func (r reqMap) delete(id int64) {
 	delete(r.m, id)
 }
 
-// func (m clientMap) delete(k string) {
-// 	m.mu.Lock()
-// 	defer m.mu.Unlock()
-// 	_, ok := m.m[k]
-// 	if ok {
-// 		delete(m.m, k)
-// 	}
-// 	return
-// }
-
 func (kv *KVServer) getv(key string) string {
 	kv.rwmu.RLock()
 	defer kv.rwmu.RUnlock()
@@ -187,6 +178,9 @@ func (kv *KVServer) appendv(key, val string) {
 func (kv *KVServer) checkLeader() bool {
 	_, isleader := kv.rf.GetState()
 	return isleader
+}
+func (kv *KVServer) EnableLog() {
+	kv.rf.SetLogger(log.Default())
 }
 
 func (kv *KVServer) Get(args *pb.GetArgs, reply *pb.GetReply) {
@@ -358,7 +352,6 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 	labgob.Register(ReqStatusMap{})
 
 	kv := &KVServer{
-		// rwmu: &sync.RWMutex{},
 		data: make(map[string]string),
 		idmap: clientMap{
 			m:  make(map[[16]byte]*reqMap),
@@ -380,20 +373,13 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 	kv.rf.SnapshotFunc = func() []byte {
 		w := new(bytes.Buffer)
 		e := labgob.NewEncoder(w)
-		// kv.rwmu.RLock()
 		e.Encode(kv.data)
-		// kv.rwmu.RUnlock()
-		// kv.encMu.RLock()
 		e.Encode(kv.encodeM)
-		// fmt.Println("start")
-		// for _, v := range kv.encodeM {
-		// 	fmt.Println(v)
-		// }
-		// kv.encMu.RUnlock()
 		data := w.Bytes()
 		return data
 	}
 	kv.rf.WaitForDone = true
+	kv.rf.SetLogger(log.New(io.Discard, "", 0))
 
 	// You may need initialization code here.
 	go func() {
