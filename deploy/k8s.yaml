@@ -44,7 +44,7 @@ spec:
         app: kv
     spec:
       containers:
-      - name: kubernetes-zookeeper
+      - name: kvrf
         imagePullPolicy: Always
         image: registry.cn-hangzhou.aliyuncs.com/pivotstudio/raft:{{.build_tag}}
         resources:
@@ -79,7 +79,7 @@ spec:
         #   timeoutSeconds: 5
         volumeMounts:
         - name: datadir
-          mountPath: data
+          mountPath: /app/data
       # securityContext:
       #   runAsUser: 1000
       #   fsGroup: 1000
