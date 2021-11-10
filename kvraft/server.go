@@ -389,50 +389,37 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 			}
 			apply := <-kv.applyCh
 			if !apply.CommandValid {
-				close(apply.Ch)
+				apply.Done()
 				continue
 			}
 			if apply.IsSnapshot {
 				kv.loadSnapshot(apply.Command.([]byte))
-				close(apply.Ch)
+				apply.Done()
 				continue
 			}
 			op := apply.Command.(Op)
 			err := "raft err"
 			reqmap := kv.idmap.get(op.ClientID)
 			sig, _ := reqmap.get(op.ReqID)
-			// bs, _ := json.Marshal(op)
-			// fmt.Println(string(bs))
 			if !sig.done && op.ReqID > atomic.LoadInt64(&reqmap.succMaxID) {
 				switch cmd := op.Args.(type) {
 				case PutAppendArgs:
 					if cmd.Op == "Put" {
 						kv.setv(cmd.Key, cmd.Value)
 						err = ""
-						// fmt.Println("put", cmd.Value)
 
 					} else if cmd.Op == "Append" {
 						kv.appendv(cmd.Key, cmd.Value)
 						err = ""
-						// fmt.Println("append", cmd.Value, kv.me, kv.checkLeader())
-						// fmt.Println("append", kv.me, apply.CommandIndex, cmd.Key, cmd.Value)
 					}
 				case GetArgs:
 					err = ""
-					// reqmap.delete(op.ReqID)
 				default:
 				}
-
-			}
-			if atomic.LoadInt64(&reqmap.succMaxID) > op.ReqID {
-				reqmap.delete(op.ReqID)
-			}
-			if !sig.done && op.ReqID > atomic.LoadInt64(&reqmap.succMaxID) {
 				sig.err = Err(err)
 				sig.done = true
 				// compress succ results
 				if len(sig.err) == 0 {
-					// kv.encMu.Lock()
 					if _, ext := kv.encodeM[op.ClientID]; !ext {
 						kv.encodeM[op.ClientID] = &ReqStatusMap{
 							M: map[int64]bool{
@@ -442,7 +429,6 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 					} else if !kv.encodeM[op.ClientID].M[op.ReqID] && op.ReqID > kv.encodeM[op.ClientID].SuccMaxID {
 						kv.encodeM[op.ClientID].M[op.ReqID] = true
 					}
-					// kv.encMu.Unlock()
 					i := reqmap.succMaxID + 1
 					c := kv.encodeM[op.ClientID].SuccMaxID + 1
 					if i != c {
@@ -474,7 +460,7 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 				sig.done = true
 				reqmap.delete(op.ReqID)
 			}
-			close(apply.Ch)
+			apply.Done()
 			sig.once.Do(func() {
 				close(sig.ch)
 			})

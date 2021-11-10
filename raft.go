@@ -19,6 +19,7 @@ package raft
 
 import (
 	"bytes"
+	"io"
 	"log"
 	"math/rand"
 	"net"
@@ -35,7 +36,7 @@ import (
 type TakeSnapshot func() []byte
 
 func (rf *Raft) initLog() {
-	rf.logger = log.Default()
+	rf.logger = log.New(io.Discard, "", 0)
 }
 func (rf *Raft) SetLogger(logger *log.Logger) {
 	rf.logger = logger
@@ -140,6 +141,10 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 }
 func (rf *Raft) applyCommits(commitIndex int64) {
 	applied := false
+	var wg *sync.WaitGroup
+	if rf.WaitForDone {
+		wg = &sync.WaitGroup{}
+	}
 	for i := rf.commitIndex; i < commitIndex && int(i) < len(rf.logs)+rf.lastIncludedIndex; i++ {
 		rf.Log("apply commit", i+1)
 		msg := ApplyMsg{
@@ -148,22 +153,17 @@ func (rf *Raft) applyCommits(commitIndex int64) {
 			Command:      rf.logs[int(i)-rf.lastIncludedIndex].Command,
 		}
 		if rf.WaitForDone {
-			msg.Ch = make(chan struct{})
+			msg.wg = wg
+			wg.Add(1)
 		}
 		atomic.AddInt64(&rf.commitIndex, 1)
 		rf.applych <- msg
-		if rf.WaitForDone {
-			select {
-			case <-rf.killch:
-				atomic.AddInt64(&rf.commitIndex, -1)
-				return
-			case <-msg.Ch:
-			}
-
-		}
 		// fmt.Println(rf.me, rf.logs[int(i)-rf.lastIncludedIndex].Command)
 		rf.Log("applied commit", i+1, rf.logs[int(i)-rf.lastIncludedIndex].Command)
 		applied = true
+	}
+	if rf.WaitForDone {
+		wg.Wait()
 	}
 	if rf.MaxRaftStateSize != -1 && applied {
 		rf.persist()
@@ -389,11 +389,12 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 			Command:      args.Data,
 		}
 		if rf.WaitForDone {
-			msg.Ch = make(chan struct{})
+			msg.wg = &sync.WaitGroup{}
+			msg.wg.Add(1)
 		}
 		rf.applych <- msg
 		if rf.WaitForDone {
-			<-msg.Ch
+			msg.wg.Wait()
 		}
 		rf.commitIndex = int64(args.LastIncludedIndex)
 

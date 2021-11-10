@@ -17,7 +17,11 @@ type ApplyMsg struct {
 	Command      interface{}
 	CommandIndex int
 	IsSnapshot   bool
-	Ch           chan struct{}
+	wg           *sync.WaitGroup
+}
+
+func (msg ApplyMsg) Done() {
+	msg.wg.Done()
 }
 
 const (
