@@ -33,17 +33,21 @@ type Persister struct {
 
 	needsave    int32
 	needsaveLog int32
+	manageSN    bool
 }
 
 func MakePersister() *Persister {
 	persister := &Persister{
-		me: -1,
+		me:       -1,
+		manageSN: true,
 	}
 	return persister
 }
 
-func MakrRealPersister(me int) *Persister {
-	persister := &Persister{}
+func MakrRealPersister(me int, managgSnapshot bool) *Persister {
+	persister := &Persister{
+		manageSN: managgSnapshot,
+	}
 	os.MkdirAll("data", os.ModePerm)
 	f, err := os.OpenFile(fmt.Sprintf("data/%d.rast", me), os.O_RDWR|os.O_APPEND|os.O_CREATE, os.FileMode(0777))
 	if err == nil {
@@ -100,8 +104,10 @@ func save(persister *Persister) {
 		wg.Done()
 	}()
 	go func() {
-		persister.snapshotF.Truncate(0)
-		persister.sne.Encode(persister.snapshot)
+		if persister.manageSN {
+			persister.snapshotF.Truncate(0)
+			persister.sne.Encode(persister.snapshot)
+		}
 		wg.Done()
 	}()
 	wg.Wait()
@@ -115,7 +121,9 @@ func (ps *Persister) Kill() {
 		ps.snapshotF.Close()
 	}
 }
-
+func (ps *Persister) ManageSnapshot() bool {
+	return ps.manageSN
+}
 func (ps *Persister) Copy() *Persister {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()

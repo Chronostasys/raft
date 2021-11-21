@@ -2,6 +2,7 @@ package kvraft
 
 import (
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -33,24 +34,24 @@ func TestRealServer(t *testing.T) {
 }
 
 func BenchmarkGet(b *testing.B) {
-	benchmarkOp(func(client *Clerk) {
+	benchmarkOp(func(client *Clerk, i int) {
 		client.Get("a")
 	}, b, true)
 }
 
 func BenchmarkPut(b *testing.B) {
-	benchmarkOp(func(client *Clerk) {
+	benchmarkOp(func(client *Clerk, i int) {
 		client.Put("a", "b")
 	}, b, true)
 }
 
 func BenchmarkAppend(b *testing.B) {
-	benchmarkOp(func(client *Clerk) {
+	benchmarkOp(func(client *Clerk, i int) {
 		client.Append("a", "b")
 	}, b, true)
 }
 
-func benchmarkOp(benchfunc func(client *Clerk), b *testing.B, startServer bool) {
+func benchmarkOp(benchfunc func(client *Clerk, i int), b *testing.B, startServer bool) {
 	ends := []string{":1234", ":1235", ":1236"}
 	rpcends := raft.MakeRPCEnds(ends)
 	ext := raw_connect("", ends)
@@ -88,10 +89,10 @@ func benchmarkOp(benchfunc func(client *Clerk), b *testing.B, startServer bool) 
 	wg.Add(b.N)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		go func() {
-			benchfunc(client)
+		go func(i int) {
+			benchfunc(client, i)
 			wg.Done()
-		}()
+		}(i)
 	}
 	wg.Wait()
 	b.StopTimer()
@@ -112,20 +113,20 @@ func raw_connect(host string, ports []string) bool {
 }
 
 func BenchmarkRealServerPut(b *testing.B) {
-	benchmarkOp(func(client *Clerk) {
-		client.Put("a", "b")
+	benchmarkOp(func(client *Clerk, i int) {
+		client.Put(strconv.Itoa(i), "b")
 	}, b, false)
 }
 
 func BenchmarkRealServerAppend(b *testing.B) {
-	benchmarkOp(func(client *Clerk) {
-		client.Append("a", "b")
+	benchmarkOp(func(client *Clerk, i int) {
+		client.Append(strconv.Itoa(i), "b")
 	}, b, false)
 }
 
 func BenchmarkRealServerGet(b *testing.B) {
-	benchmarkOp(func(client *Clerk) {
-		client.Get("a")
+	benchmarkOp(func(client *Clerk, i int) {
+		client.Get(strconv.Itoa(i))
 	}, b, false)
 }
 

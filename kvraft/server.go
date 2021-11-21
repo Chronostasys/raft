@@ -6,13 +6,16 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/Chronostasys/raft"
 	"github.com/Chronostasys/raft/labgob"
+	"github.com/Chronostasys/raft/labrpc"
 	"github.com/Chronostasys/raft/pb"
+	"github.com/Chronostasys/trees/btree"
 	"google.golang.org/grpc"
 )
 
@@ -45,7 +48,7 @@ type KVServer struct {
 	maxraftstate int // snapshot if log grows this big
 
 	// Your definitions here.
-	data    map[string]string
+	data    *btree.Tree
 	idmap   clientMap
 	l       net.Listener
 	encodeM map[[16]byte]*ReqStatusMap
@@ -161,18 +164,39 @@ func (r reqMap) delete(id int64) {
 func (kv *KVServer) getv(key string) string {
 	kv.rwmu.RLock()
 	defer kv.rwmu.RUnlock()
-	return kv.data[key]
+	d := kv.data.Search(hash(key))
+	if d == nil {
+		return ""
+	}
+	return d.(*Doc).Val
 }
 
 func (kv *KVServer) setv(key, val string) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			panic(kv)
+		}
+	}()
 	kv.rwmu.Lock()
 	defer kv.rwmu.Unlock()
-	kv.data[key] = val
+	kv.data.Insert(makeDoc(key, val))
 }
 func (kv *KVServer) appendv(key, val string) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			panic(kv)
+		}
+	}()
 	kv.rwmu.Lock()
 	defer kv.rwmu.Unlock()
-	kv.data[key] = kv.data[key] + val
+	d := kv.data.Search(hash(key))
+	if d == nil {
+		kv.data.Insert(makeDoc(key, val))
+		return
+	}
+	kv.data.Insert(makeDoc(key, d.(*Doc).Val+val))
 }
 
 func (kv *KVServer) checkLeader() bool {
@@ -311,17 +335,27 @@ func (kv *KVServer) loadSnapshot(state []byte) {
 	r := bytes.NewBuffer(state)
 	d := labgob.NewDecoder(r)
 	m := map[[16]byte]*ReqStatusMap{}
+	// sn := []byte{}
 	// kv.rwmu.Lock()
-	if d.Decode(&kv.data) != nil ||
-		d.Decode(&m) != nil {
+	if d.Decode(&m) != nil {
 		fmt.Println("read snapshot err")
 	}
 	// kv.rwmu.Unlock()
 	// kv.encMu.Lock()
 	kv.encodeM = m
+	sn := r.Bytes()
+	da := btree.LoadSnapshot(sn, fmt.Sprintf("%d", kv.me))
+	if da != nil {
+		kv.data = da
+	}
 	// kv.encMu.Unlock()
 	kv.map2cm(m)
 }
+
+// type PersistData struct {
+// 	Req  map[[16]byte]*ReqStatusMap
+// 	Docs []byte
+// }
 
 //
 // servers[] contains the ports of the set of
@@ -350,9 +384,15 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 	labgob.Register(pb.PutAppendReply{})
 	labgob.Register(ReqStatus{})
 	labgob.Register(ReqStatusMap{})
+	labgob.Register(&Doc{})
+	labgob.Register(btree.BinNode{})
+	labgob.Register(btree.TreeMeta{})
+	labgob.Register(btree.Int(0))
+	labgob.Register([]byte{})
+	labgob.Register(&map[[16]byte]*ReqStatusMap{})
 
 	kv := &KVServer{
-		data: make(map[string]string),
+		data: btree.MakePersist(1024),
 		idmap: clientMap{
 			m:  make(map[[16]byte]*reqMap),
 			mu: &sync.RWMutex{},
@@ -362,19 +402,50 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 	}
 	kv.me = me
 	kv.maxraftstate = maxraftstate
-
+	var f *os.File
+	if _, ok := servers[0].(*labrpc.ClientEnd); !ok {
+		f, _ = os.OpenFile(fmt.Sprintf("%d.req", kv.me), os.O_CREATE|os.O_RDWR, 0644)
+	}
 	// You may need initialization code here.
 
 	kv.applyCh = make(chan raft.ApplyMsg, 100)
 	// load snapshot
-	kv.loadSnapshot(persister.ReadSnapshot())
+	if persister.ManageSnapshot() {
+		kv.loadSnapshot(persister.ReadSnapshot())
+	} else {
+		bs, _ := io.ReadAll(f)
+		r := bytes.NewBuffer(bs)
+		d := labgob.NewDecoder(r)
+		m := map[[16]byte]*ReqStatusMap{}
+		err := d.Decode(&m)
+		if err != nil {
+			fmt.Println("read snapshot err", err, len(bs))
+		}
+		kv.encodeM = m
+		kv.map2cm(m)
+		load := btree.Load(fmt.Sprintf("%d", kv.me))
+		if load != nil {
+			kv.data = load
+		}
+	}
 	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
 	kv.rf.MaxRaftStateSize = kv.maxraftstate
 	kv.rf.SnapshotFunc = func() []byte {
 		w := new(bytes.Buffer)
 		e := labgob.NewEncoder(w)
-		e.Encode(kv.data)
-		e.Encode(kv.encodeM)
+		err := e.Encode(kv.encodeM)
+		if err != nil {
+			fmt.Println("save snapshot err", err)
+		}
+		if _, ok := servers[0].(*labrpc.ClientEnd); !ok {
+			bs := w.Bytes()
+			f.Truncate(0)
+			f.Seek(0, 0)
+			f.Write(bs)
+			f.Sync()
+		}
+		sn := kv.data.PersistWithSnapshot(fmt.Sprintf("%d", kv.me))
+		w.Write(sn)
 		data := w.Bytes()
 		return data
 	}

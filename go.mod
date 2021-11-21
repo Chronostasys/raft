@@ -3,6 +3,7 @@ module github.com/Chronostasys/raft
 go 1.17
 
 require (
+	github.com/Chronostasys/trees v0.0.0-20211121184959-fafa20b40403
 	github.com/nsf/termbox-go v1.1.1
 	google.golang.org/grpc v1.42.0
 	google.golang.org/protobuf v1.27.1

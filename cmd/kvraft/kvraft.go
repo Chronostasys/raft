@@ -33,7 +33,7 @@ func main() {
 	ends := os.Args[2:]
 	rpcends := raft.MakeRPCEnds(ends)
 	me, _ := strconv.Atoi(os.Args[1])
-	kv := kvraft.StartKVServer(rpcends, me, raft.MakrRealPersister(me), 10000)
+	kv := kvraft.StartKVServer(rpcends, me, raft.MakrRealPersister(me, false), 10000)
 	kv.EnableLog()
 	ss := strings.Split(ends[me], ":")
 	go kv.Serve(":" + ss[len(ss)-1])
