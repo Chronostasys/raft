@@ -26,7 +26,7 @@ benchmark-rf:
 	go test -bench=. -run=RaftStart -benchtime=3x
 
 benchmark-kv:
-	cd kvraft/ && time go test -bench=. -run=Benchmark 
+	cd kvraft/ && time go test -bench=. -run=BenchmarkRealServerPut -benchtime=100000x
 
 pb: proto/*
 	protoc --proto_path=proto proto/*.proto --go_out=plugins=grpc:.

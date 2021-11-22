@@ -80,7 +80,8 @@ func (rf *Raft) readPersist(data []byte) {
 		d.Decode(&rf.currentTerm) != nil ||
 		d.Decode(&rf.lastIncludedIndex) != nil ||
 		d.Decode(&rf.lastIncludedTerm) != nil {
-		log.Fatalln("read persist err")
+		log.Println("read persist err")
+		return
 	}
 	rf.commitIndex = int64(rf.lastIncludedIndex)
 	for i := 0; i < len(rf.peers); i++ {
@@ -691,7 +692,7 @@ func (rf *Raft) StartWithCache(command interface{}) bool {
 	if rf.cacheThreshold < 100 {
 		// low latency mode
 		if rps >= 100 {
-			rf.cacheThreshold = 10000
+			rf.cacheThreshold = 1000
 		}
 		_, _, succ := rf.Start(command)
 		rf.cacheidx = 0
@@ -880,7 +881,7 @@ func Make(peers []RPCEnd, me int,
 		cacheSuccCh:      make(chan struct{}),
 		cacheFailCh:      make(chan struct{}),
 		sendCh:           make(chan struct{}, 1),
-		cacheThreshold:   10000,
+		cacheThreshold:   1000,
 	}
 	for i := 0; i < len(peers); i++ {
 		rf.nextIndex[i] = 1
@@ -896,7 +897,7 @@ func Make(peers []RPCEnd, me int,
 	// Your initialization code here (2A, 2B, 2C).
 	go func() {
 		for {
-			time.Sleep(time.Millisecond * time.Duration(200+rand.Intn(200)))
+			time.Sleep(time.Millisecond * time.Duration(300+rand.Intn(300)))
 			select {
 			case rf.electionChan <- struct{}{}:
 			default:

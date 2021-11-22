@@ -1,10 +1,14 @@
 package kvraft
 
 import (
+	"fmt"
+	"math/rand"
 	"net"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -41,7 +45,7 @@ func BenchmarkGet(b *testing.B) {
 
 func BenchmarkPut(b *testing.B) {
 	benchmarkOp(func(client *Clerk, i int) {
-		client.Put("a", "b")
+		client.Put(fmt.Sprintf("%d", i), "b")
 	}, b, true)
 }
 
@@ -85,18 +89,33 @@ func benchmarkOp(benchfunc func(client *Clerk, i int), b *testing.B, startServer
 		}
 	}
 	client := MakeClerk(rpcends)
+	rands := []int{}
+	// warm up
 	wg := sync.WaitGroup{}
-	wg.Add(b.N)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	wg.Add(10000)
+	for i := 0; i < 10000; i++ {
+		rands = append(rands, i)
 		go func(i int) {
-			benchfunc(client, i)
+			benchfunc(client, 0)
 			wg.Done()
 		}(i)
 	}
 	wg.Wait()
+	b.SetParallelism(256)
+	runtime.GC()
+	rand.Shuffle(len(rands), func(i, j int) {
+		rands[i], rands[j] = rands[j], rands[i]
+	})
+	b.ResetTimer()
+	i := int64(-1)
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			benchfunc(client, rands[int(atomic.AddInt64(&i, 1))%10000])
+		}
+
+	})
 	b.StopTimer()
-	client.Put("a", "")
+	// client.Put("a", "")
 }
 func raw_connect(host string, ports []string) bool {
 	for _, port := range ports {
@@ -128,21 +147,4 @@ func BenchmarkRealServerGet(b *testing.B) {
 	benchmarkOp(func(client *Clerk, i int) {
 		client.Get(strconv.Itoa(i))
 	}, b, false)
-}
-
-func BenchmarkConcurrentMapWrite(b *testing.B) {
-	mu := sync.Mutex{}
-	m := map[int]int{}
-	wg := sync.WaitGroup{}
-	wg.Add(b.N)
-	for i := 0; i < b.N; i++ {
-		go func(i int) {
-			mu.Lock()
-			defer mu.Unlock()
-			m[i] = m[i] + i
-			wg.Done()
-		}(i)
-	}
-	wg.Wait()
-
 }

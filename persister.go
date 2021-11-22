@@ -10,14 +10,16 @@ package raft
 //
 
 import (
+	"encoding/binary"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/Chronostasys/raft/labgob"
+	"github.com/edsrzf/mmap-go"
 )
 
 type Persister struct {
@@ -25,11 +27,10 @@ type Persister struct {
 	raftstate []byte
 	snapshot  []byte
 	killed    int32
-	e         *labgob.LabEncoder
-	sne       *labgob.LabEncoder
 	me        int
 	f         *os.File
 	snapshotF *os.File
+	mmap      mmap.MMap
 
 	needsave    int32
 	needsaveLog int32
@@ -50,26 +51,29 @@ func MakrRealPersister(me int, managgSnapshot bool) *Persister {
 	}
 	os.MkdirAll("data", os.ModePerm)
 	f, err := os.OpenFile(fmt.Sprintf("data/%d.rast", me), os.O_RDWR|os.O_APPEND|os.O_CREATE, os.FileMode(0777))
-	if err == nil {
-		d := labgob.NewDecoder(f)
-		d.Decode(&persister.raftstate)
-		d.Decode(&persister.snapshot)
-	} else {
+	if err != nil {
 		log.Fatal(err)
 	}
+	f.Seek(0, 0)
+	err = f.Truncate(60000 * 1024)
+	if err != nil {
+		panic(err)
+	}
+	err = f.Sync()
+	if err != nil {
+		panic(err)
+	}
+	persister.mmap, _ = mmap.MapRegion(f, -1, mmap.RDWR, 0, 0)
+	l := int64(binary.LittleEndian.Uint64(persister.mmap[:8]))
+	persister.raftstate = persister.mmap[8 : 8+l]
 	f1, err := os.OpenFile(fmt.Sprintf("data/%d-sn.rast", me), os.O_RDWR|os.O_APPEND|os.O_CREATE, os.FileMode(0777))
 	if err == nil {
-		d := labgob.NewDecoder(f)
-		d.Decode(&persister.snapshot)
+		persister.snapshot, _ = io.ReadAll(f1)
 	} else {
 		log.Fatal(err)
 	}
 	persister.f = f
 	persister.snapshotF = f1
-	e := labgob.NewEncoder(f)
-	persister.e = e
-	e1 := labgob.NewEncoder(f1)
-	persister.sne = e1
 	persister.me = me
 	go func() {
 		for {
@@ -80,11 +84,6 @@ func MakrRealPersister(me int, managgSnapshot bool) *Persister {
 			if atomic.CompareAndSwapInt32(&persister.needsave, 1, 0) {
 				// fmt.Println("persist")
 				save(persister)
-			} else if atomic.CompareAndSwapInt32(&persister.needsaveLog, 1, 0) {
-				persister.snapshotF.Truncate(0)
-				persister.mu.RLock()
-				persister.e.Encode(persister.raftstate)
-				persister.mu.RUnlock()
 			}
 		}
 	}()
@@ -94,29 +93,25 @@ func save(persister *Persister) {
 	if persister.me == -1 {
 		return
 	}
-	e := persister.e
 	wg := sync.WaitGroup{}
-	wg.Add(2)
-	persister.mu.RLock()
-	go func() {
-		persister.f.Truncate(0)
-		e.Encode(persister.raftstate)
-		wg.Done()
-	}()
+	wg.Add(1)
 	go func() {
 		if persister.manageSN {
 			persister.snapshotF.Truncate(0)
-			persister.sne.Encode(persister.snapshot)
+			persister.snapshotF.Seek(0, 0)
+			persister.snapshotF.Write(persister.snapshot)
 		}
 		wg.Done()
 	}()
 	wg.Wait()
-	persister.mu.RUnlock()
 }
 func (ps *Persister) Kill() {
 	i := atomic.AddInt32(&ps.killed, 1)
 	if i == 1 {
 		save(ps)
+		ps.mmap.Flush()
+		ps.mmap.Unmap()
+		ps.f.Sync()
 		ps.f.Close()
 		ps.snapshotF.Close()
 	}
@@ -140,6 +135,8 @@ func (ps *Persister) SaveRaftState(state []byte) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	ps.raftstate = state
+	binary.LittleEndian.PutUint64(ps.mmap[:8], uint64(len(state)))
+	copy(ps.mmap[8:len(state)+8], state)
 }
 
 func (ps *Persister) ReadRaftState() []byte {

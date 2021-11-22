@@ -172,23 +172,11 @@ func (kv *KVServer) getv(key string) string {
 }
 
 func (kv *KVServer) setv(key, val string) {
-	defer func() {
-		err := recover()
-		if err != nil {
-			panic(kv)
-		}
-	}()
 	kv.rwmu.Lock()
 	defer kv.rwmu.Unlock()
 	kv.data.Insert(makeDoc(key, val))
 }
 func (kv *KVServer) appendv(key, val string) {
-	defer func() {
-		err := recover()
-		if err != nil {
-			panic(kv)
-		}
-	}()
 	kv.rwmu.Lock()
 	defer kv.rwmu.Unlock()
 	d := kv.data.Search(hash(key))
@@ -344,7 +332,7 @@ func (kv *KVServer) loadSnapshot(state []byte) {
 	// kv.encMu.Lock()
 	kv.encodeM = m
 	sn := r.Bytes()
-	da := btree.LoadSnapshot(sn, fmt.Sprintf("%d", kv.me))
+	da := btree.LoadSnapshot(sn, fmt.Sprintf("data/%d", kv.me))
 	if da != nil {
 		kv.data = da
 	}
@@ -402,9 +390,10 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 	}
 	kv.me = me
 	kv.maxraftstate = maxraftstate
+	os.MkdirAll("data", os.ModePerm)
 	var f *os.File
 	if _, ok := servers[0].(*labrpc.ClientEnd); !ok {
-		f, _ = os.OpenFile(fmt.Sprintf("%d.req", kv.me), os.O_CREATE|os.O_RDWR, 0644)
+		f, _ = os.OpenFile(fmt.Sprintf("data/%d.req", kv.me), os.O_CREATE|os.O_RDWR, 0644)
 	}
 	// You may need initialization code here.
 
@@ -423,7 +412,7 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 		}
 		kv.encodeM = m
 		kv.map2cm(m)
-		load := btree.Load(fmt.Sprintf("%d", kv.me))
+		load := btree.Load(fmt.Sprintf("data/%d", kv.me))
 		if load != nil {
 			kv.data = load
 		}
@@ -444,7 +433,7 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 			f.Write(bs)
 			f.Sync()
 		}
-		sn := kv.data.PersistWithSnapshot(fmt.Sprintf("%d", kv.me))
+		sn := kv.data.PersistWithSnapshot(fmt.Sprintf("data/%d", kv.me))
 		w.Write(sn)
 		data := w.Bytes()
 		return data
