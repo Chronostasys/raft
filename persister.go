@@ -54,6 +54,7 @@ func MakrRealPersister(me int, managgSnapshot bool) *Persister {
 	if err != nil {
 		log.Fatal(err)
 	}
+	info, _ := f.Stat()
 	f.Seek(0, 0)
 	err = f.Truncate(60000 * 1024)
 	if err != nil {
@@ -64,8 +65,10 @@ func MakrRealPersister(me int, managgSnapshot bool) *Persister {
 		panic(err)
 	}
 	persister.mmap, _ = mmap.MapRegion(f, -1, mmap.RDWR, 0, 0)
-	l := int64(binary.LittleEndian.Uint64(persister.mmap[:8]))
-	persister.raftstate = persister.mmap[8 : 8+l]
+	if info.Size() == 60000*1024 {
+		l := int64(binary.LittleEndian.Uint64(persister.mmap[:8]))
+		persister.raftstate = persister.mmap[8 : 8+l]
+	}
 	f1, err := os.OpenFile(fmt.Sprintf("data/%d-sn.rast", me), os.O_RDWR|os.O_APPEND|os.O_CREATE, os.FileMode(0777))
 	if err == nil {
 		persister.snapshot, _ = io.ReadAll(f1)
