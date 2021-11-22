@@ -135,8 +135,10 @@ func (ps *Persister) SaveRaftState(state []byte) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	ps.raftstate = state
-	binary.LittleEndian.PutUint64(ps.mmap[:8], uint64(len(state)))
-	copy(ps.mmap[8:len(state)+8], state)
+	if ps.mmap != nil {
+		binary.LittleEndian.PutUint64(ps.mmap[:8], uint64(len(state)))
+		copy(ps.mmap[8:len(state)+8], state)
+	}
 }
 
 func (ps *Persister) ReadRaftState() []byte {
