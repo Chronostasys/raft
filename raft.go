@@ -627,7 +627,7 @@ func (rf *Raft) getPrevLogInfo() (idx int, term int64) {
 // }
 func (rf *Raft) checkAndSaveSnapshot() bool {
 	if rf.MaxRaftStateSize != -1 && rf.persister.RaftStateSize() > rf.MaxRaftStateSize {
-		if rf.lastSNIdx >= int(rf.commitIndex)-rf.MinCommitBTWSnapshots {
+		if rf.lastSNIdx > int(rf.commitIndex)-rf.MinCommitBTWSnapshots {
 			return false
 		}
 		rf.SaveSnapshot(rf.SnapshotFunc())
