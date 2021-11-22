@@ -89,12 +89,10 @@ func benchmarkOp(benchfunc func(client *Clerk, i int), b *testing.B, startServer
 		}
 	}
 	client := MakeClerk(rpcends)
-	rands := []int{}
 	// warm up
 	wg := sync.WaitGroup{}
 	wg.Add(10000)
 	for i := 0; i < 10000; i++ {
-		rands = append(rands, i)
 		go func(i int) {
 			benchfunc(client, 0)
 			wg.Done()
@@ -103,14 +101,12 @@ func benchmarkOp(benchfunc func(client *Clerk, i int), b *testing.B, startServer
 	wg.Wait()
 	b.SetParallelism(256)
 	runtime.GC()
-	rand.Shuffle(len(rands), func(i, j int) {
-		rands[i], rands[j] = rands[j], rands[i]
-	})
+	rands := rand.Perm(b.N)
 	b.ResetTimer()
 	i := int64(-1)
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			benchfunc(client, rands[int(atomic.AddInt64(&i, 1))%10000])
+			benchfunc(client, rands[int(atomic.AddInt64(&i, 1))])
 		}
 
 	})

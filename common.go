@@ -95,10 +95,13 @@ type Raft struct {
 	lowcount          int
 	killo             sync.Once
 
+	lastSNIdx int
+
 	// public
-	MaxRaftStateSize int
-	SnapshotFunc     TakeSnapshot
-	WaitForDone      bool
+	MaxRaftStateSize      int
+	SnapshotFunc          TakeSnapshot
+	WaitForDone           bool
+	MinCommitBTWSnapshots int
 }
 
 type appendMutex struct {

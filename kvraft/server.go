@@ -440,7 +440,9 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 	}
 	kv.rf.WaitForDone = true
 	kv.rf.SetLogger(log.New(io.Discard, "", 0))
-
+	if _, ok := servers[0].(*labrpc.ClientEnd); !ok {
+		kv.rf.MinCommitBTWSnapshots = 3000
+	}
 	// You may need initialization code here.
 	go func() {
 		for {

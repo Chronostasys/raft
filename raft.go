@@ -209,6 +209,7 @@ func (rf *Raft) SaveSnapshot(snapshot []byte) {
 	rf.logs = rf.logs[realLastIdx+1:] // discard snapshoted logs
 	data := rf.encodeState()
 	rf.persister.SaveStateAndSnapshot(data, snapshot)
+	rf.lastSNIdx = int(rf.commitIndex)
 	// fmt.Println(rf.persister.RaftStateSize(), rf.persister.SnapshotSize())
 }
 func (rf *Raft) getHeartBeat() {
@@ -626,6 +627,9 @@ func (rf *Raft) getPrevLogInfo() (idx int, term int64) {
 // }
 func (rf *Raft) checkAndSaveSnapshot() bool {
 	if rf.MaxRaftStateSize != -1 && rf.persister.RaftStateSize() > rf.MaxRaftStateSize {
+		if rf.lastSNIdx >= int(rf.commitIndex)-rf.MinCommitBTWSnapshots {
+			return false
+		}
 		rf.SaveSnapshot(rf.SnapshotFunc())
 		return true
 	}
