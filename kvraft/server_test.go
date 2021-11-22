@@ -99,14 +99,14 @@ func benchmarkOp(benchfunc func(client *Clerk, i int), b *testing.B, startServer
 		}(i)
 	}
 	wg.Wait()
-	b.SetParallelism(256)
+	b.SetParallelism(512)
 	runtime.GC()
-	rands := rand.Perm(b.N)
+	rands := rand.Perm(10000)
 	b.ResetTimer()
 	i := int64(-1)
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			benchfunc(client, rands[int(atomic.AddInt64(&i, 1))])
+			benchfunc(client, rands[int(atomic.AddInt64(&i, 1))%10000])
 		}
 
 	})

@@ -35,6 +35,10 @@ import (
 
 type TakeSnapshot func() []byte
 
+func init() {
+	rand.Seed(time.Now().UnixMilli())
+}
+
 func (rf *Raft) initLog() {
 	rf.logger = log.New(io.Discard, "", 0)
 }
@@ -684,10 +688,15 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	return idx, int(term), isleader
 }
 func (rf *Raft) StartWithCache(command interface{}) bool {
-	// if atomic.LoadInt64(&rf.role) != leader {
-	// 	return false
-	// }
+	if atomic.LoadInt64(&rf.role) != leader {
+		// time.Sleep(time.Millisecond)
+		return false
+	}
 	rf.cachemu.Lock()
+	if atomic.LoadInt64(&rf.role) != leader {
+		rf.cachemu.Unlock()
+		return false
+	}
 	rps := atomic.AddInt64(&rf.reqPer100ms, 1)
 	succCh := rf.cacheSuccCh
 	failCh := rf.cacheFailCh
@@ -897,6 +906,7 @@ func Make(peers []RPCEnd, me int,
 	rf.initLog()
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
+	hbo := sync.Once{}
 
 	// Your initialization code here (2A, 2B, 2C).
 	go func() {
@@ -915,7 +925,7 @@ func Make(peers []RPCEnd, me int,
 				return
 			}
 			rf.mu.Lock()
-			if rf.role == leader {
+			if atomic.LoadInt64(&rf.role) == leader {
 				rf.mu.Unlock()
 				rf.Log("already leader, skip election")
 				continue
@@ -969,19 +979,25 @@ func Make(peers []RPCEnd, me int,
 						rf.Log("become leader")
 						rf.Info("become leader")
 						atomic.StoreInt64(&rf.role, leader)
-						go func() {
-							for {
-								if rf.killed() {
-									return
+						hbo.Do(func() {
+							for i := range rf.peers {
+								if i != me {
+									go func(i int) {
+										var ch <-chan time.Time
+										for {
+											ch = time.After(time.Millisecond * 100)
+											if rf.killed() {
+												return
+											}
+											if atomic.LoadInt64(&rf.role) == leader {
+												rf.sendHeartbeat(i)
+											}
+											<-ch
+										}
+									}(i)
 								}
-								if atomic.LoadInt64(&rf.role) == leader {
-									rf.morethanHalf(func(id int) bool {
-										return rf.sendHeartbeat(id)
-									})
-								}
-								time.Sleep(time.Millisecond * 100)
 							}
-						}()
+						})
 					}
 					rf.mu.Unlock()
 				}()
@@ -998,39 +1014,40 @@ func Make(peers []RPCEnd, me int,
 			select {
 			case <-rf.sendCh:
 			default:
-				go func(rp100ms int64) {
-					rf.cachemu.Lock()
-					defer rf.cachemu.Unlock()
-					if rf.cacheidx != 0 {
-						succCh := rf.cacheSuccCh
-						failCh := rf.cacheFailCh
-						succ := rf.StartMulti(rf.cache[:rf.cacheidx]...)
-						if rp100ms < int64(rf.cacheidx) {
-							rp100ms = int64(rf.cacheidx)
-						}
-						rf.cacheidx = 0
-						if succ {
-							close(succCh)
-							rf.cacheSuccCh = make(chan struct{})
-						} else {
-							close(failCh)
-							rf.cacheFailCh = make(chan struct{})
-						}
-						if rp100ms <= 100 {
-							rf.lowcount++
-							// low latency mode
-							if rf.lowcount > 5 {
-								rf.cacheThreshold = 1
-								rf.lowcount = 0
-							}
-						} else {
-							rf.cacheThreshold = int(rp100ms)
-						}
-						if rf.cacheThreshold > len(rf.cache) {
-							rf.cacheThreshold = len(rf.cache)
-						}
+				rf.cachemu.Lock()
+				if rf.cacheidx != 0 {
+					succCh := rf.cacheSuccCh
+					failCh := rf.cacheFailCh
+					succ := false
+					if atomic.LoadInt64(&rf.role) == leader {
+						succ = rf.StartMulti(rf.cache[:rf.cacheidx]...)
 					}
-				}(rp100ms)
+					if rp100ms < int64(rf.cacheidx) {
+						rp100ms = int64(rf.cacheidx)
+					}
+					rf.cacheidx = 0
+					if succ {
+						close(succCh)
+						rf.cacheSuccCh = make(chan struct{})
+					} else {
+						close(failCh)
+						rf.cacheFailCh = make(chan struct{})
+					}
+					if rp100ms <= 100 {
+						rf.lowcount++
+						// low latency mode
+						if rf.lowcount > 5 {
+							rf.cacheThreshold = 1
+							rf.lowcount = 0
+						}
+					} else {
+						rf.cacheThreshold = int(rp100ms)
+					}
+					if rf.cacheThreshold > len(rf.cache) {
+						rf.cacheThreshold = len(rf.cache)
+					}
+				}
+				rf.cachemu.Unlock()
 			}
 		}
 	}()

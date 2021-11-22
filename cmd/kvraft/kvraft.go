@@ -37,6 +37,7 @@ func main() {
 	kv.EnableLog()
 	ss := strings.Split(ends[me], ":")
 	go kv.Serve(":" + ss[len(ss)-1])
+	println("pid", os.Getpid())
 	if len(os.Args) == 6 {
 		go http.ListenAndServe(os.Args[5], nil)
 	}
