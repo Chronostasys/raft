@@ -174,6 +174,9 @@ func (kv *KVServer) getv(key string) string {
 func (kv *KVServer) setv(key, val string) {
 	kv.rwmu.Lock()
 	defer kv.rwmu.Unlock()
+	if len(val) == 0 {
+		kv.data.Delete(hash(key))
+	}
 	kv.data.Insert(makeDoc(key, val))
 }
 func (kv *KVServer) appendv(key, val string) {
