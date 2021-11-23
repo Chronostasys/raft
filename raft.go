@@ -972,23 +972,19 @@ func Make(peers []RPCEnd, me int,
 						rf.Info("become leader")
 						atomic.StoreInt64(&rf.role, leader)
 						hbo.Do(func() {
-							for i := range rf.peers {
-								if i != me {
-									go func(i int) {
-										var ch <-chan time.Time
-										for {
-											ch = time.After(time.Millisecond * 100)
-											if rf.killed() {
-												return
-											}
-											if atomic.LoadInt64(&rf.role) == leader {
-												rf.sendHeartbeat(i)
-											}
-											<-ch
-										}
-									}(i)
+							go func() {
+								for {
+									if rf.killed() {
+										return
+									}
+									if atomic.LoadInt64(&rf.role) == leader {
+										rf.morethanHalf(func(id int) bool {
+											return rf.sendHeartbeat(id)
+										})
+									}
+									time.Sleep(time.Millisecond * 100)
 								}
-							}
+							}()
 						})
 					}
 					rf.mu.Unlock()
