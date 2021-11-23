@@ -886,7 +886,6 @@ func Make(peers []RPCEnd, me int,
 		appendmu:         make([]*appendMutex, len(peers)),
 		idxmu:            &sync.Mutex{},
 		commitIndex:      0,
-		electionChan:     make(chan struct{}, 1),
 		MaxRaftStateSize: -1,
 		killch:           make(chan struct{}),
 		cache:            make([]interface{}, 10000),
@@ -910,21 +909,14 @@ func Make(peers []RPCEnd, me int,
 
 	// Your initialization code here (2A, 2B, 2C).
 	go func() {
+		elch := time.After(time.Millisecond * time.Duration(300+rand.Intn(300)))
 		for {
-			time.Sleep(time.Millisecond * time.Duration(300+rand.Intn(300)))
-			select {
-			case rf.electionChan <- struct{}{}:
-			default:
-			}
-		}
-	}()
-	go func() {
-		for {
-			<-rf.electionChan
+			<-elch
 			if rf.killed() {
 				return
 			}
 			rf.mu.Lock()
+			elch = time.After(time.Millisecond * time.Duration(300+rand.Intn(300)))
 			if atomic.LoadInt64(&rf.role) == leader {
 				rf.mu.Unlock()
 				rf.Log("already leader, skip election")

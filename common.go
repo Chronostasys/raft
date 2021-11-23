@@ -78,7 +78,6 @@ type Raft struct {
 	appendmu          []*appendMutex
 	idxmu             *sync.Mutex
 	killch            chan struct{}
-	electionChan      chan struct{}
 	lastIncludedIndex int
 	lastIncludedTerm  int64
 	logger            *log.Logger
