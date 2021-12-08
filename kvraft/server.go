@@ -19,17 +19,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-const (
-	Debug = 0
-)
-
-func DPrintf(format string, a ...interface{}) (n int, err error) {
-	if Debug > 0 {
-		log.Printf(format, a...)
-	}
-	return
-}
-
 type Op struct {
 	// Your definitions here.
 	// Field names must start with capital letters,
@@ -326,13 +315,9 @@ func (kv *KVServer) loadSnapshot(state []byte) {
 	r := bytes.NewBuffer(state)
 	d := labgob.NewDecoder(r)
 	m := map[[16]byte]*ReqStatusMap{}
-	// sn := []byte{}
-	// kv.rwmu.Lock()
 	if d.Decode(&m) != nil {
 		fmt.Println("read snapshot err")
 	}
-	// kv.rwmu.Unlock()
-	// kv.encMu.Lock()
 	kv.encodeM = m
 	sn := r.Bytes()
 	da := btree.LoadSnapshot(sn, fmt.Sprintf("data/%d", kv.me))
@@ -342,11 +327,6 @@ func (kv *KVServer) loadSnapshot(state []byte) {
 	// kv.encMu.Unlock()
 	kv.map2cm(m)
 }
-
-// type PersistData struct {
-// 	Req  map[[16]byte]*ReqStatusMap
-// 	Docs []byte
-// }
 
 //
 // servers[] contains the ports of the set of
@@ -453,82 +433,82 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 				return
 			}
 			apply := <-kv.applyCh
-			if !apply.CommandValid {
-				apply.Done()
-				continue
-			}
-			if apply.IsSnapshot {
-				kv.loadSnapshot(apply.Command.([]byte))
-				apply.Done()
-				continue
-			}
-			op := apply.Command.(Op)
-			err := "raft err"
-			reqmap := kv.idmap.get(op.ClientID)
-			sig, _ := reqmap.get(op.ReqID)
-			if !sig.done && op.ReqID > atomic.LoadInt64(&reqmap.succMaxID) {
-				switch cmd := op.Args.(type) {
-				case PutAppendArgs:
-					if cmd.Op == "Put" {
-						kv.setv(cmd.Key, cmd.Value)
-						err = ""
-
-					} else if cmd.Op == "Append" {
-						kv.appendv(cmd.Key, cmd.Value)
-						err = ""
-					}
-				case GetArgs:
-					err = ""
-				default:
+			func() {
+				defer apply.Done()
+				if !apply.CommandValid {
+					return
 				}
-				sig.err = Err(err)
-				sig.done = true
-				// compress succ results
-				if len(sig.err) == 0 {
-					if _, ext := kv.encodeM[op.ClientID]; !ext {
-						kv.encodeM[op.ClientID] = &ReqStatusMap{
-							M: map[int64]bool{
-								op.ReqID: true,
-							},
-						}
-					} else if !kv.encodeM[op.ClientID].M[op.ReqID] && op.ReqID > kv.encodeM[op.ClientID].SuccMaxID {
-						kv.encodeM[op.ClientID].M[op.ReqID] = true
-					}
-					i := reqmap.succMaxID + 1
-					c := kv.encodeM[op.ClientID].SuccMaxID + 1
-					if i != c {
-						fmt.Println("fatal", i, c)
-					}
-					for {
-
-						reqmap.mu.Lock()
-						el, ext := reqmap.m[i]
-						if !ext {
-							reqmap.mu.Unlock()
-							break
-						}
-						if el.done && len(el.err) == 0 {
-							delete(reqmap.m, i)
-							atomic.AddInt64(&reqmap.succMaxID, 1)
-							delete(kv.encodeM[op.ClientID].M, c)
-							kv.encodeM[op.ClientID].SuccMaxID++
-						} else {
-							reqmap.mu.Unlock()
-							break
-						}
-						reqmap.mu.Unlock()
-						i++
-						c++
-					}
+				if apply.IsSnapshot {
+					kv.loadSnapshot(apply.Command.([]byte))
+					return
 				}
-			} else if atomic.LoadInt64(&reqmap.succMaxID) >= op.ReqID {
-				sig.done = true
-				reqmap.delete(op.ReqID)
-			}
-			apply.Done()
-			sig.once.Do(func() {
-				close(sig.ch)
-			})
+				op := apply.Command.(Op)
+				err := "raft err"
+				reqmap := kv.idmap.get(op.ClientID)
+				sig, _ := reqmap.get(op.ReqID)
+				if !sig.done && op.ReqID > atomic.LoadInt64(&reqmap.succMaxID) {
+					switch cmd := op.Args.(type) {
+					case PutAppendArgs:
+						if cmd.Op == "Put" {
+							kv.setv(cmd.Key, cmd.Value)
+							err = ""
+
+						} else if cmd.Op == "Append" {
+							kv.appendv(cmd.Key, cmd.Value)
+							err = ""
+						}
+					case GetArgs:
+						err = ""
+					default:
+					}
+					sig.err = Err(err)
+					sig.done = true
+					// compress succ results
+					if len(sig.err) == 0 {
+						if _, ext := kv.encodeM[op.ClientID]; !ext {
+							kv.encodeM[op.ClientID] = &ReqStatusMap{
+								M: map[int64]bool{
+									op.ReqID: true,
+								},
+							}
+						} else if !kv.encodeM[op.ClientID].M[op.ReqID] && op.ReqID > kv.encodeM[op.ClientID].SuccMaxID {
+							kv.encodeM[op.ClientID].M[op.ReqID] = true
+						}
+						i := reqmap.succMaxID + 1
+						c := kv.encodeM[op.ClientID].SuccMaxID + 1
+						if i != c {
+							fmt.Println("fatal", i, c)
+						}
+						for {
+
+							reqmap.mu.Lock()
+							el, ext := reqmap.m[i]
+							if !ext {
+								reqmap.mu.Unlock()
+								break
+							}
+							if el.done && len(el.err) == 0 {
+								delete(reqmap.m, i)
+								atomic.AddInt64(&reqmap.succMaxID, 1)
+								delete(kv.encodeM[op.ClientID].M, c)
+								kv.encodeM[op.ClientID].SuccMaxID++
+							} else {
+								reqmap.mu.Unlock()
+								break
+							}
+							reqmap.mu.Unlock()
+							i++
+							c++
+						}
+					}
+				} else if atomic.LoadInt64(&reqmap.succMaxID) >= op.ReqID {
+					sig.done = true
+					reqmap.delete(op.ReqID)
+				}
+				sig.once.Do(func() {
+					close(sig.ch)
+				})
+			}()
 		}
 	}()
 	return kv

@@ -10,4 +10,5 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositorie
 RUN apk --no-cache add ca-certificates
 COPY --from=builder /kvraft/out/kvraft/ /app/
 WORKDIR /app
+ENV PATH="/app:${PATH}"
 ENTRYPOINT /app/kvraft

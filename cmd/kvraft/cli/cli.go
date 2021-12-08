@@ -78,7 +78,6 @@ func checkHeight() {
 	termbox.Flush()
 	_, wy := termbox.Size()
 	if y >= wy {
-
 		scrollDown()
 		termbox.Flush()
 	}
@@ -106,8 +105,9 @@ func main() {
 		"get",
 		"put",
 	}
-	setCur := func() {
-		termbox.SetCursor(x, y)
+	setCurWrap := func() {
+		mx, _ := termbox.Size()
+		termbox.SetCursor(x%mx, y+x/mx)
 		termbox.Flush()
 	}
 	err := termbox.Init()
@@ -135,7 +135,7 @@ func main() {
 		line := ""
 	READLINE:
 		for {
-			setCur()
+			setCurWrap()
 			ev := <-evCh
 			switch ev.Type {
 
@@ -148,9 +148,9 @@ func main() {
 							x = 5
 							for i, v := range line {
 								if strings.Contains(line[:i], " ") {
-									termbox.SetCell(5+i, y, v, termbox.ColorGreen, termbox.ColorDefault)
+									setCellWrap(5+i, y, v, termbox.ColorGreen, termbox.ColorDefault)
 								} else {
-									termbox.SetCell(5+i, y, v, termbox.ColorLightBlue, termbox.ColorDefault)
+									setCellWrap(5+i, y, v, termbox.ColorLightBlue, termbox.ColorDefault)
 								}
 								x++
 							}
@@ -158,7 +158,7 @@ func main() {
 						}
 					}
 					line += " "
-					termbox.SetCell(x, y, ' ', termbox.ColorDefault, termbox.ColorDefault)
+					setCellWrap(x, y, ' ', termbox.ColorDefault, termbox.ColorDefault)
 					x++
 					continue
 
@@ -167,6 +167,8 @@ func main() {
 				case termbox.KeyEnter:
 					history = append(history, line)
 					hisID = len(history)
+					mx, _ := termbox.Size()
+					y += x / mx
 					y++
 					println()
 
@@ -181,9 +183,9 @@ func main() {
 					}
 					x--
 					for i, v := range line[x-4:] {
-						termbox.SetChar(x+i, y, v)
+						setCellWrap(x+i, y, v, termbox.ColorDefault, termbox.ColorDefault)
 					}
-					termbox.SetChar(4+len(line), y, ' ')
+					setCellWrap(4+len(line), y, ' ', termbox.ColorDefault, termbox.ColorDefault)
 					line = line[:x-5] + line[x-4:]
 				case termbox.KeyArrowLeft:
 					if x-5 > 0 {
@@ -202,14 +204,14 @@ func main() {
 					}
 					hisID--
 					for i := range line {
-						termbox.SetChar(5+i, y, ' ')
+						setCellWrap(5+i, y, ' ', termbox.ColorDefault, termbox.ColorDefault)
 					}
 					line = history[hisID]
 					for i, v := range line {
 						if strings.Contains(line[:i], " ") {
-							termbox.SetCell(5+i, y, v, termbox.ColorGreen, termbox.ColorDefault)
+							setCellWrap(5+i, y, v, termbox.ColorGreen, termbox.ColorDefault)
 						} else {
-							termbox.SetCell(5+i, y, v, termbox.ColorLightBlue, termbox.ColorDefault)
+							setCellWrap(5+i, y, v, termbox.ColorLightBlue, termbox.ColorDefault)
 						}
 					}
 					x = 5
@@ -219,14 +221,14 @@ func main() {
 					}
 					hisID++
 					for i := range line {
-						termbox.SetChar(5+i, y, ' ')
+						setCellWrap(5+i, y, ' ', termbox.ColorDefault, termbox.ColorDefault)
 					}
 					line = history[hisID]
 					for i, v := range line {
 						if strings.Contains(line[:i], " ") {
-							termbox.SetCell(5+i, y, v, termbox.ColorGreen, termbox.ColorDefault)
+							setCellWrap(5+i, y, v, termbox.ColorGreen, termbox.ColorDefault)
 						} else {
-							termbox.SetCell(5+i, y, v, termbox.ColorLightBlue, termbox.ColorDefault)
+							setCellWrap(5+i, y, v, termbox.ColorLightBlue, termbox.ColorDefault)
 						}
 					}
 					x = 5
@@ -236,22 +238,21 @@ func main() {
 					if ev.Key == termbox.KeySpace {
 						ev.Ch = ' '
 					}
+					color := termbox.ColorLightBlue
 					if strings.Contains(line[:x-5], " ") {
-						termbox.SetCell(x, y, ev.Ch, termbox.ColorGreen, termbox.ColorDefault)
-					} else {
-						termbox.SetCell(x, y, ev.Ch, termbox.ColorLightBlue, termbox.ColorDefault)
+						color = termbox.ColorGreen
 					}
+					setCellWrap(x, y, ev.Ch, color, termbox.ColorDefault)
 					x++
 					line = line[:x-6] + string(ev.Ch) + line[x-6:]
 					for i, v := range line[x-5:] {
 						if strings.Contains(line[:x-5+i], " ") {
-							termbox.SetCell(x+i, y, v, termbox.ColorGreen, termbox.ColorDefault)
+							setCellWrap(x+i, y, v, termbox.ColorGreen, termbox.ColorDefault)
 						} else {
-							termbox.SetCell(x+i, y, v, termbox.ColorLightBlue, termbox.ColorDefault)
+							setCellWrap(x+i, y, v, termbox.ColorLightBlue, termbox.ColorDefault)
 						}
 					}
-					setCur()
-					termbox.Flush()
+					setCurWrap()
 				}
 			case termbox.EventError:
 				return
@@ -262,6 +263,11 @@ func main() {
 	}
 }
 
+func setCellWrap(x, y int, ch rune, fg, bg termbox.Attribute) {
+	mx, _ := termbox.Size()
+	termbox.SetCell(x%mx, y+x/mx, ch, fg, bg)
+}
+
 func tprintln(s string, color termbox.Attribute) {
 	tprint(s, color)
 	x = 0
@@ -269,9 +275,15 @@ func tprintln(s string, color termbox.Attribute) {
 }
 func tprint(s string, color termbox.Attribute) {
 	checkHeight()
+	mx, _ := termbox.Size()
 	for _, v := range s {
 		termbox.SetCell(x, y, v, color, termbox.ColorDefault)
 		x++
+		if x == mx {
+			x = 0
+			y++
+			checkHeight()
+		}
 	}
 }
 
