@@ -28,7 +28,6 @@ func main() {
 		flag.PrintDefaults()
 		return
 	}
-	println(*eps)
 	ends := strings.Split(*eps, " ")
 	rpcends := raft.MakeRPCEnds(ends)
 	kv := kvraft.StartKVServer(rpcends, *me, raft.MakrRealPersister(*me, false), 400000)
@@ -67,7 +66,5 @@ func readEnv() {
 		}
 		args = append(args, "-eps="+strings.Join(epl, " "))
 	}
-	if len(os.Args) == 1 {
-		os.Args = append(os.Args, args...)
-	}
+	os.Args = append(os.Args, args...)
 }
