@@ -23,6 +23,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"runtime"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -111,6 +112,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		rf.Log("candidate", args.CandidateID, "term is", args.Term, "too small, failed to vote")
 		return
 	} else if rf.currentTerm < args.Term {
+		rf.Log("candidate", args.CandidateID, "term is", args.Term, "larger than me")
 		rf.currentTerm = args.Term
 		atomic.StoreInt64(&rf.role, follower)
 		rf.votedFor = -1
@@ -124,25 +126,15 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		return
 	}
 	rf.Log("args idx", args.LastLogIndex, "args term", args.LastLogTerm, "idx", idx, "term", term)
-	if args.Term == rf.currentTerm {
-		reply.Term = args.Term
-		if rf.votedFor == -1 || rf.votedFor == args.CandidateID {
-			atomic.StoreInt64(&rf.votedFor, args.CandidateID)
-			reply.VoteGranted = true
-			rf.Log("votes for", args.CandidateID)
-			rf.persist()
-			return
-		}
-		reply.VoteGranted = false
-	} else {
-		atomic.StoreInt64(&rf.currentTerm, args.Term)
-		atomic.StoreInt64(&rf.role, follower)
+	reply.Term = args.Term
+	if rf.votedFor == -1 || rf.votedFor == args.CandidateID {
 		atomic.StoreInt64(&rf.votedFor, args.CandidateID)
-		rf.persist()
-		reply.Term = rf.currentTerm
 		reply.VoteGranted = true
 		rf.Log("votes for", args.CandidateID)
+		rf.persist()
+		return
 	}
+	reply.VoteGranted = false
 }
 func (rf *Raft) applyCommits(commitIndex int64) {
 	applied := false
@@ -812,7 +804,8 @@ func (rf *Raft) killed() bool {
 
 func (rf *Raft) Log(msg ...interface{}) {
 	if rf.debug {
-		logs := append([]interface{}{"[debug]", rf.me, "in term", rf.currentTerm}, msg...)
+		_, _, l, _ := runtime.Caller(1)
+		logs := append([]interface{}{"[debug]", rf.me, "in term", rf.currentTerm, "line", l}, msg...)
 		rf.logger.Println(logs...)
 	}
 }
@@ -846,7 +839,7 @@ func (rf *Raft) morethanHalf(job jobfunc) bool {
 					}
 				} else {
 					num := atomic.AddInt32(&fail, 1)
-					if num == half {
+					if num == half+1 {
 						close(chfail)
 					}
 				}
@@ -934,7 +927,7 @@ func Make(peers []RPCEnd, me int,
 				atomic.StoreInt64(&rf.role, candidate)
 				atomic.StoreInt64(&rf.votedFor, int64(rf.me))
 				rf.currentTerm++
-				rf.Log("start election")
+				rf.Log("start election", rf.currentTerm)
 				currterm := rf.currentTerm
 				idx, term := rf.getPrevLogInfo()
 				rf.persist()

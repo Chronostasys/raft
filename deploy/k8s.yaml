@@ -47,6 +47,10 @@ spec:
       - name: kvrf
         imagePullPolicy: Always
         image: registry.cn-hangzhou.aliyuncs.com/pivotstudio/raft:{{.build_tag}}
+        command:
+          - "kvraft"
+          - "-log"
+          - "-pprof=8889"
         resources:
           requests:
             memory: "100Mi"
@@ -54,9 +58,11 @@ spec:
         ports:
         - containerPort: 8888
           name: server
+        - containerPort: 8889
+          name: pprof
         env:
         - name: EPS
-          value: kv-0.kv-hs:8888;kv-1.kv-hs:8888;kv-2.kv-hs:8888;:8889
+          value: kv-0.kv-hs:8888;kv-1.kv-hs:8888;kv-2.kv-hs:8888
         - name: ME
           valueFrom:
             fieldRef:

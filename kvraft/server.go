@@ -2,6 +2,7 @@ package kvraft
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -286,14 +287,31 @@ func (kv *KVServer) killed() bool {
 	return z == 1
 }
 
-func (kv *KVServer) Serve(addr string) {
+func (kv *KVServer) ServeWithReqLog(addr string) {
+	interceptor := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+		if info.FullMethod[1] != 'R' {
+			t := time.Now()
+			defer func() {
+				if err == nil {
+					log.Println("[info]", info.FullMethod, "complete in", time.Since(t))
+				} else {
+					log.Println("[err]", info.FullMethod, "error in", time.Since(t), "err:", err)
+				}
+			}()
+		}
+		// 继续处理请求
+		return handler(ctx, req)
+	}
+	kv.Serve(addr, grpc.UnaryInterceptor(interceptor))
+}
 
+func (kv *KVServer) Serve(addr string, opt ...grpc.ServerOption) {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
 	kv.l = l
-	server := grpc.NewServer()
+	server := grpc.NewServer(opt...)
 
 	pb.RegisterKVServiceServer(server, &KVRPCServer{
 		kv: kv,

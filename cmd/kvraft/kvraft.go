@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -17,32 +18,33 @@ import (
 
 func main() {
 	readEnv()
-	if len(os.Args) < 3 {
-		println("kvraft server")
-		println("A highly available kv server based on raft")
-		println("To use it, you need to start at least 3 kvraft instance")
-		println("The number of kvraft must be odd number")
-		println("Usage:")
-		println("	$kvraft [me] [endpoint1] [endpoint2] [endpoint3]...")
-		println("Example:")
-		println("	$kvraft 0 :1234 :1235 :1236")
-		println("	$kvraft 1 :1234 :1235 :1236")
-		println("	$kvraft 2 :1234 :1235 :1236")
-		os.Exit(1)
+	eps := flag.String("eps", ":1234 :1235 :1236", "raft peer end points")
+	me := flag.Int("me", -1, "zero based index of endpoint")
+	dbg := flag.String("pprof", "", "pprof port")
+	reqlog := flag.Bool("log", false, "enable request log")
+	flag.Parse()
+	if *me == -1 {
+		println("Usage of kvraft:")
+		flag.PrintDefaults()
+		return
 	}
-	ends := os.Args[2:]
+	println(*eps)
+	ends := strings.Split(*eps, " ")
 	rpcends := raft.MakeRPCEnds(ends)
-	me, _ := strconv.Atoi(os.Args[1])
-	kv := kvraft.StartKVServer(rpcends, me, raft.MakrRealPersister(me, false), 400000)
+	kv := kvraft.StartKVServer(rpcends, *me, raft.MakrRealPersister(*me, false), 400000)
 	kv.EnableLog()
-	ss := strings.Split(ends[me], ":")
-	go kv.Serve(":" + ss[len(ss)-1])
-	println("pid", os.Getpid())
-	if len(os.Args) == 6 {
-		go http.ListenAndServe(os.Args[5], nil)
+	ss := strings.Split(ends[*me], ":")
+	if *reqlog {
+		go kv.ServeWithReqLog(":" + ss[len(ss)-1])
+	} else {
+		go kv.Serve(":" + ss[len(ss)-1])
 	}
-	println("start serving at", ends[me])
-	println("persist data position:", fmt.Sprintf("%d.rast", me))
+	println("pid", os.Getpid())
+	if len(*dbg) != 0 {
+		go http.ListenAndServe(*dbg, nil)
+	}
+	println("start serving at", ends[*me])
+	println("persist data position:", fmt.Sprintf("%d.rast", *me))
 	println("ctrl+c to shutdown")
 	s := make(chan os.Signal, 1)
 	signal.Notify(s, syscall.SIGINT, syscall.SIGTERM)
@@ -60,10 +62,10 @@ func readEnv() {
 		epl := strings.Split(eps, ";")
 		for i, v := range epl {
 			if strings.Contains(v, me) {
-				args = append(args, strconv.Itoa(i))
+				args = append(args, "-me="+strconv.Itoa(i))
 			}
 		}
-		args = append(args, epl...)
+		args = append(args, "-eps="+strings.Join(epl, " "))
 	}
 	if len(os.Args) == 1 {
 		os.Args = append(os.Args, args...)
