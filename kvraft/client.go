@@ -85,8 +85,8 @@ func (ck *Clerk) Get(key string) string {
 	}
 	return reply.Value
 }
-func (ck *Clerk) Larger(than string, max, limit, skip int, callback func(k, v string) bool) string {
-	reply := &pb.GetReply{}
+func (ck *Clerk) Larger(than string, max, limit, skip int, callback func(k, v string) bool) {
+
 	id := ck.getID()
 	// You will have to modify this function.
 	for {
@@ -125,7 +125,6 @@ func (ck *Clerk) Larger(than string, max, limit, skip int, callback func(k, v st
 		}
 		time.Sleep(time.Millisecond * 100)
 	}
-	return reply.Value
 }
 
 type jobfunc func(server int, id int64) bool

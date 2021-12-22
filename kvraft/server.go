@@ -169,10 +169,12 @@ func (kv *KVServer) larger(key string, max, limit, skip int, callback func(btree
 func (kv *KVServer) setv(key, val string) {
 	kv.rwmu.Lock()
 	defer kv.rwmu.Unlock()
-	if len(val) == 0 {
-		kv.data.Delete(btree.KV{K: key})
-	}
 	kv.data.Insert(btree.KV{K: key, V: val})
+}
+func (kv *KVServer) delv(key string) {
+	kv.rwmu.Lock()
+	defer kv.rwmu.Unlock()
+	kv.data.Delete(btree.KV{K: key})
 }
 func (kv *KVServer) appendv(key, val string) {
 	kv.rwmu.Lock()
@@ -237,7 +239,6 @@ var (
 )
 
 func (kv *KVServer) Larger(args *pb.LargerArgs, server pb.KVService_LargerServer) error {
-	println("get larger rpc")
 	// Your code here.
 	if kv.killed() {
 		return errKill
@@ -537,6 +538,9 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 
 						} else if cmd.Op == "Append" {
 							kv.appendv(cmd.Key, cmd.Value)
+							err = ""
+						} else if cmd.Op == "Delete" {
+							kv.delv(cmd.Key)
 							err = ""
 						}
 					case GetArgs, LargerArgs:
