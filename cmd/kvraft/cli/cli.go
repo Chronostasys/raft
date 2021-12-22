@@ -104,6 +104,7 @@ func main() {
 		"append",
 		"get",
 		"put",
+		"larger",
 	}
 	setCurWrap := func() {
 		mx, _ := termbox.Size()
@@ -362,8 +363,19 @@ func processInput(input string, client *kvraft.Clerk) int {
 		tprintln("\""+v+"\"", termbox.ColorLightBlue)
 		tprint("    Get OK -- ", termbox.ColorDefault)
 		tprintln(t(), termbox.ColorLightGreen)
-		// println("Key", colorGreen, "\""+cmds[1]+"\"", colorReset, "Val", colorBlue, "\""+v+"\"", colorReset)
 		return 1
+	} else if cmds[0] == "larger" {
+		l := 0
+		if !dojob(func() {
+			client.Larger(strings.Trim(cmds[1], "\""), 1000, 1000, 0, func(k, v string) bool {
+				tprintln(fmt.Sprintf(" Key: %s val: %s", k, v), termbox.ColorDefault)
+				l++
+				return true
+			})
+		}) {
+			return -1
+		}
+		return l
 	} else {
 		tprintln("Unknown command: "+cmds[0], termbox.ColorRed)
 		printHelp()

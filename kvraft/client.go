@@ -1,6 +1,7 @@
 package kvraft
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"math/big"
@@ -74,6 +75,48 @@ func (ck *Clerk) Get(key string) string {
 			if ok && len(re.Err) == 0 {
 				reply = re
 				return true
+			}
+			return false
+		}, id)
+		if ok {
+			break
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
+	return reply.Value
+}
+func (ck *Clerk) Larger(than string, max, limit, skip int, callback func(k, v string) bool) string {
+	reply := &pb.GetReply{}
+	id := ck.getID()
+	// You will have to modify this function.
+	for {
+		ok := ck.OneDone(func(server int, id int64) bool {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			stream, err := ck.servers[server].(*raft.ClientEnd).KVend.Larger(
+				ctx, &pb.LargerArgs{
+					Than:     than,
+					Max:      int64(max),
+					Limit:    int64(limit),
+					Skip:     int64(skip),
+					ReqId:    id,
+					ClientId: ck.id[:],
+				},
+			)
+			if err == nil {
+				var msg *pb.LargerReply
+				msg, err = stream.Recv()
+				for err == nil {
+					if msg.Err == "end" {
+						return true
+					}
+					co := callback(msg.K, msg.V)
+					if !co {
+						return true
+					}
+					msg, err = stream.Recv()
+				}
+				return false
 			}
 			return false
 		}, id)

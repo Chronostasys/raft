@@ -268,6 +268,156 @@ func (x *PutAppendReply) GetErr() string {
 	return ""
 }
 
+type LargerArgs struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Than     string `protobuf:"bytes,1,opt,name=than,proto3" json:"than,omitempty"`
+	Max      int64  `protobuf:"varint,2,opt,name=max,proto3" json:"max,omitempty"`
+	Limit    int64  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	Skip     int64  `protobuf:"varint,4,opt,name=skip,proto3" json:"skip,omitempty"`
+	ClientId []byte `protobuf:"bytes,5,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	ReqId    int64  `protobuf:"varint,6,opt,name=req_id,json=reqId,proto3" json:"req_id,omitempty"`
+}
+
+func (x *LargerArgs) Reset() {
+	*x = LargerArgs{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_kv_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *LargerArgs) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LargerArgs) ProtoMessage() {}
+
+func (x *LargerArgs) ProtoReflect() protoreflect.Message {
+	mi := &file_kv_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LargerArgs.ProtoReflect.Descriptor instead.
+func (*LargerArgs) Descriptor() ([]byte, []int) {
+	return file_kv_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *LargerArgs) GetThan() string {
+	if x != nil {
+		return x.Than
+	}
+	return ""
+}
+
+func (x *LargerArgs) GetMax() int64 {
+	if x != nil {
+		return x.Max
+	}
+	return 0
+}
+
+func (x *LargerArgs) GetLimit() int64 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *LargerArgs) GetSkip() int64 {
+	if x != nil {
+		return x.Skip
+	}
+	return 0
+}
+
+func (x *LargerArgs) GetClientId() []byte {
+	if x != nil {
+		return x.ClientId
+	}
+	return nil
+}
+
+func (x *LargerArgs) GetReqId() int64 {
+	if x != nil {
+		return x.ReqId
+	}
+	return 0
+}
+
+type LargerReply struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	K   string `protobuf:"bytes,1,opt,name=k,proto3" json:"k,omitempty"`
+	V   string `protobuf:"bytes,2,opt,name=v,proto3" json:"v,omitempty"`
+	Err string `protobuf:"bytes,3,opt,name=err,proto3" json:"err,omitempty"`
+}
+
+func (x *LargerReply) Reset() {
+	*x = LargerReply{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_kv_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *LargerReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LargerReply) ProtoMessage() {}
+
+func (x *LargerReply) ProtoReflect() protoreflect.Message {
+	mi := &file_kv_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LargerReply.ProtoReflect.Descriptor instead.
+func (*LargerReply) Descriptor() ([]byte, []int) {
+	return file_kv_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *LargerReply) GetK() string {
+	if x != nil {
+		return x.K
+	}
+	return ""
+}
+
+func (x *LargerReply) GetV() string {
+	if x != nil {
+		return x.V
+	}
+	return ""
+}
+
+func (x *LargerReply) GetErr() string {
+	if x != nil {
+		return x.Err
+	}
+	return ""
+}
+
 var File_kv_proto protoreflect.FileDescriptor
 
 var file_kv_proto_rawDesc = []byte{
@@ -290,13 +440,28 @@ var file_kv_proto_rawDesc = []byte{
 	0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x22, 0x22, 0x0a, 0x0e,
 	0x50, 0x75, 0x74, 0x41, 0x70, 0x70, 0x65, 0x6e, 0x64, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x12, 0x10,
 	0x0a, 0x03, 0x65, 0x72, 0x72, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x65, 0x72, 0x72,
-	0x32, 0x55, 0x0a, 0x09, 0x4b, 0x56, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x2c, 0x0a,
+	0x22, 0x90, 0x01, 0x0a, 0x0a, 0x4c, 0x61, 0x72, 0x67, 0x65, 0x72, 0x41, 0x72, 0x67, 0x73, 0x12,
+	0x12, 0x0a, 0x04, 0x74, 0x68, 0x61, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x74,
+	0x68, 0x61, 0x6e, 0x12, 0x10, 0x0a, 0x03, 0x6d, 0x61, 0x78, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03,
+	0x52, 0x03, 0x6d, 0x61, 0x78, 0x12, 0x14, 0x0a, 0x05, 0x6c, 0x69, 0x6d, 0x69, 0x74, 0x18, 0x03,
+	0x20, 0x01, 0x28, 0x03, 0x52, 0x05, 0x6c, 0x69, 0x6d, 0x69, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x73,
+	0x6b, 0x69, 0x70, 0x18, 0x04, 0x20, 0x01, 0x28, 0x03, 0x52, 0x04, 0x73, 0x6b, 0x69, 0x70, 0x12,
+	0x1b, 0x0a, 0x09, 0x63, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x5f, 0x69, 0x64, 0x18, 0x05, 0x20, 0x01,
+	0x28, 0x0c, 0x52, 0x08, 0x63, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x49, 0x64, 0x12, 0x15, 0x0a, 0x06,
+	0x72, 0x65, 0x71, 0x5f, 0x69, 0x64, 0x18, 0x06, 0x20, 0x01, 0x28, 0x03, 0x52, 0x05, 0x72, 0x65,
+	0x71, 0x49, 0x64, 0x22, 0x3b, 0x0a, 0x0b, 0x4c, 0x61, 0x72, 0x67, 0x65, 0x72, 0x52, 0x65, 0x70,
+	0x6c, 0x79, 0x12, 0x0c, 0x0a, 0x01, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x01, 0x6b,
+	0x12, 0x0c, 0x0a, 0x01, 0x76, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x01, 0x76, 0x12, 0x10,
+	0x0a, 0x03, 0x65, 0x72, 0x72, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x65, 0x72, 0x72,
+	0x32, 0x7c, 0x0a, 0x09, 0x4b, 0x56, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x2c, 0x0a,
 	0x09, 0x50, 0x75, 0x74, 0x41, 0x70, 0x70, 0x65, 0x6e, 0x64, 0x12, 0x0e, 0x2e, 0x50, 0x75, 0x74,
 	0x41, 0x70, 0x70, 0x65, 0x6e, 0x64, 0x41, 0x72, 0x67, 0x73, 0x1a, 0x0f, 0x2e, 0x50, 0x75, 0x74,
 	0x41, 0x70, 0x70, 0x65, 0x6e, 0x64, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x12, 0x1a, 0x0a, 0x03, 0x47,
 	0x65, 0x74, 0x12, 0x08, 0x2e, 0x47, 0x65, 0x74, 0x41, 0x72, 0x67, 0x73, 0x1a, 0x09, 0x2e, 0x47,
-	0x65, 0x74, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x42, 0x05, 0x5a, 0x03, 0x2f, 0x70, 0x62, 0x62, 0x06,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x65, 0x74, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x12, 0x25, 0x0a, 0x06, 0x4c, 0x61, 0x72, 0x67, 0x65,
+	0x72, 0x12, 0x0b, 0x2e, 0x4c, 0x61, 0x72, 0x67, 0x65, 0x72, 0x41, 0x72, 0x67, 0x73, 0x1a, 0x0c,
+	0x2e, 0x4c, 0x61, 0x72, 0x67, 0x65, 0x72, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x30, 0x01, 0x42, 0x05,
+	0x5a, 0x03, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -311,20 +476,24 @@ func file_kv_proto_rawDescGZIP() []byte {
 	return file_kv_proto_rawDescData
 }
 
-var file_kv_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_kv_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_kv_proto_goTypes = []interface{}{
 	(*PutAppendArgs)(nil),  // 0: PutAppendArgs
 	(*GetArgs)(nil),        // 1: GetArgs
 	(*GetReply)(nil),       // 2: GetReply
 	(*PutAppendReply)(nil), // 3: PutAppendReply
+	(*LargerArgs)(nil),     // 4: LargerArgs
+	(*LargerReply)(nil),    // 5: LargerReply
 }
 var file_kv_proto_depIdxs = []int32{
 	0, // 0: KVService.PutAppend:input_type -> PutAppendArgs
 	1, // 1: KVService.Get:input_type -> GetArgs
-	3, // 2: KVService.PutAppend:output_type -> PutAppendReply
-	2, // 3: KVService.Get:output_type -> GetReply
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
+	4, // 2: KVService.Larger:input_type -> LargerArgs
+	3, // 3: KVService.PutAppend:output_type -> PutAppendReply
+	2, // 4: KVService.Get:output_type -> GetReply
+	5, // 5: KVService.Larger:output_type -> LargerReply
+	3, // [3:6] is the sub-list for method output_type
+	0, // [0:3] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -384,6 +553,30 @@ func file_kv_proto_init() {
 				return nil
 			}
 		}
+		file_kv_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*LargerArgs); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_kv_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*LargerReply); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -391,7 +584,7 @@ func file_kv_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_kv_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
@@ -419,6 +612,7 @@ const _ = grpc.SupportPackageIsVersion6
 type KVServiceClient interface {
 	PutAppend(ctx context.Context, in *PutAppendArgs, opts ...grpc.CallOption) (*PutAppendReply, error)
 	Get(ctx context.Context, in *GetArgs, opts ...grpc.CallOption) (*GetReply, error)
+	Larger(ctx context.Context, in *LargerArgs, opts ...grpc.CallOption) (KVService_LargerClient, error)
 }
 
 type kVServiceClient struct {
@@ -447,10 +641,43 @@ func (c *kVServiceClient) Get(ctx context.Context, in *GetArgs, opts ...grpc.Cal
 	return out, nil
 }
 
+func (c *kVServiceClient) Larger(ctx context.Context, in *LargerArgs, opts ...grpc.CallOption) (KVService_LargerClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_KVService_serviceDesc.Streams[0], "/KVService/Larger", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &kVServiceLargerClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type KVService_LargerClient interface {
+	Recv() (*LargerReply, error)
+	grpc.ClientStream
+}
+
+type kVServiceLargerClient struct {
+	grpc.ClientStream
+}
+
+func (x *kVServiceLargerClient) Recv() (*LargerReply, error) {
+	m := new(LargerReply)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // KVServiceServer is the server API for KVService service.
 type KVServiceServer interface {
 	PutAppend(context.Context, *PutAppendArgs) (*PutAppendReply, error)
 	Get(context.Context, *GetArgs) (*GetReply, error)
+	Larger(*LargerArgs, KVService_LargerServer) error
 }
 
 // UnimplementedKVServiceServer can be embedded to have forward compatible implementations.
@@ -462,6 +689,9 @@ func (*UnimplementedKVServiceServer) PutAppend(context.Context, *PutAppendArgs) 
 }
 func (*UnimplementedKVServiceServer) Get(context.Context, *GetArgs) (*GetReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
+}
+func (*UnimplementedKVServiceServer) Larger(*LargerArgs, KVService_LargerServer) error {
+	return status.Errorf(codes.Unimplemented, "method Larger not implemented")
 }
 
 func RegisterKVServiceServer(s *grpc.Server, srv KVServiceServer) {
@@ -504,6 +734,27 @@ func _KVService_Get_Handler(srv interface{}, ctx context.Context, dec func(inter
 	return interceptor(ctx, in, info, handler)
 }
 
+func _KVService_Larger_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(LargerArgs)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(KVServiceServer).Larger(m, &kVServiceLargerServer{stream})
+}
+
+type KVService_LargerServer interface {
+	Send(*LargerReply) error
+	grpc.ServerStream
+}
+
+type kVServiceLargerServer struct {
+	grpc.ServerStream
+}
+
+func (x *kVServiceLargerServer) Send(m *LargerReply) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _KVService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "KVService",
 	HandlerType: (*KVServiceServer)(nil),
@@ -517,6 +768,12 @@ var _KVService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _KVService_Get_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Larger",
+			Handler:       _KVService_Larger_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "kv.proto",
 }

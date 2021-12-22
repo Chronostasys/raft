@@ -154,30 +154,35 @@ func (r reqMap) delete(id int64) {
 func (kv *KVServer) getv(key string) string {
 	kv.rwmu.RLock()
 	defer kv.rwmu.RUnlock()
-	d := kv.data.Search(hash(key))
+	d := kv.data.Search(btree.KV{K: key})
 	if d == nil {
 		return ""
 	}
-	return d.(*Doc).Val
+	return d.(btree.KV).V
+}
+func (kv *KVServer) larger(key string, max, limit, skip int, callback func(btree.Item) bool) {
+	kv.rwmu.RLock()
+	defer kv.rwmu.RUnlock()
+	kv.data.Larger(btree.KV{K: key}, max, limit, skip, callback)
 }
 
 func (kv *KVServer) setv(key, val string) {
 	kv.rwmu.Lock()
 	defer kv.rwmu.Unlock()
 	if len(val) == 0 {
-		kv.data.Delete(hash(key))
+		kv.data.Delete(btree.KV{K: key})
 	}
-	kv.data.Insert(makeDoc(key, val))
+	kv.data.Insert(btree.KV{K: key, V: val})
 }
 func (kv *KVServer) appendv(key, val string) {
 	kv.rwmu.Lock()
 	defer kv.rwmu.Unlock()
-	d := kv.data.Search(hash(key))
+	d := kv.data.Search(btree.KV{K: key})
 	if d == nil {
-		kv.data.Insert(makeDoc(key, val))
+		kv.data.Insert(btree.KV{K: key, V: val})
 		return
 	}
-	kv.data.Insert(makeDoc(key, d.(*Doc).Val+val))
+	kv.data.Insert(btree.KV{K: key, V: d.(btree.KV).V + val})
 }
 
 func (kv *KVServer) checkLeader() bool {
@@ -223,6 +228,62 @@ func (kv *KVServer) Get(args *pb.GetArgs, reply *pb.GetReply) {
 		}
 	} else {
 		reply.Err = "err raft start"
+	}
+}
+
+var (
+	errKill        = fmt.Errorf("err killed")
+	errWrongLeader = fmt.Errorf(ErrWrongLeader)
+)
+
+func (kv *KVServer) Larger(args *pb.LargerArgs, server pb.KVService_LargerServer) error {
+	println("get larger rpc")
+	// Your code here.
+	if kv.killed() {
+		return errKill
+	} else if !kv.checkLeader() {
+		return errWrongLeader
+	}
+	id := [16]byte{}
+	copy(id[:], args.ClientId)
+	sig, _ := kv.idmap.get(id).get(args.ReqId)
+	ok := kv.rf.StartWithCache(Op{Args: LargerArgs{Than: args.Than, Max: args.Max, Limit: args.Limit, Skip: args.Skip}, ClientID: id, ReqID: args.ReqId})
+	// fmt.Println("start get", args.ClientID, args.ReqID)
+	if ok {
+		var err error
+		select {
+		case <-sig.ch:
+			if len(sig.err) > 0 {
+				err = fmt.Errorf(string(sig.err))
+			}
+		case <-time.After(2 * time.Second):
+			err = fmt.Errorf("time out")
+		}
+		if kv.killed() {
+			err = errKill
+			return err
+		} else if !kv.checkLeader() {
+			err = errWrongLeader
+			return err
+		}
+		// kv.idmap.get(args.ClientID).delete(args.ReqID)
+		if err == nil {
+			kv.larger(args.Than, int(args.Max), int(args.Limit), int(args.Skip), func(i btree.Item) bool {
+				kv := i.(btree.KV)
+				err := server.Send(&pb.LargerReply{
+					K: kv.K,
+					V: kv.V,
+				})
+				return err == nil
+			})
+			server.Send(&pb.LargerReply{
+				Err: "end",
+			})
+			// fmt.Println(kv.me, "get", args.Key, reply.Err, reply.Value, kv.checkLeader())
+		}
+		return err
+	} else {
+		return fmt.Errorf("err raft start")
 	}
 }
 
@@ -371,13 +432,16 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 	labgob.Register(pb.PutAppendArgs{})
 	labgob.Register(pb.GetReply{})
 	labgob.Register(pb.PutAppendReply{})
+	labgob.Register(pb.LargerReply{})
+	labgob.Register(pb.LargerArgs{})
 	labgob.Register(ReqStatus{})
 	labgob.Register(ReqStatusMap{})
-	labgob.Register(&Doc{})
 	labgob.Register(btree.BinNode{})
 	labgob.Register(btree.TreeMeta{})
 	labgob.Register(btree.Int(0))
 	labgob.Register([]byte{})
+	labgob.Register(btree.KV{})
+	labgob.Register(LargerArgs{})
 	labgob.Register(&map[[16]byte]*ReqStatusMap{})
 
 	kv := &KVServer{
@@ -475,7 +539,7 @@ func StartKVServer(servers []raft.RPCEnd, me int, persister *raft.Persister, max
 							kv.appendv(cmd.Key, cmd.Value)
 							err = ""
 						}
-					case GetArgs:
+					case GetArgs, LargerArgs:
 						err = ""
 					default:
 					}

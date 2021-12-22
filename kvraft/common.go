@@ -33,6 +33,13 @@ type GetArgs struct {
 	// You'll have to add definitions here.
 }
 
+type LargerArgs struct {
+	Than  string
+	Max   int64
+	Limit int64
+	Skip  int64
+}
+
 type GetReply struct {
 	Err   Err
 	Value string
@@ -53,4 +60,8 @@ func (kv *KVRPCServer) PutAppend(ctx context.Context, args *pb.PutAppendArgs) (r
 	reply = &pb.PutAppendReply{}
 	kv.kv.PutAppend(args, reply)
 	return
+}
+
+func (kv *KVRPCServer) Larger(args *pb.LargerArgs, server pb.KVService_LargerServer) error {
+	return kv.kv.Larger(args, server)
 }

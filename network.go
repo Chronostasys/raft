@@ -2,7 +2,6 @@ package raft
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/Chronostasys/raft/pb"
@@ -13,24 +12,14 @@ type RPCEnd interface {
 	Call(svcMeth string, args interface{}, reply interface{}) bool
 }
 
-type clientEnd struct {
-	c   *grpc.ClientConn
-	end string
-	o   *sync.Once
+type ClientEnd struct {
+	c     *grpc.ClientConn
+	KVend pb.KVServiceClient
+	end   string
 }
 
-func (c *clientEnd) Call(svcMeth string, args interface{}, reply interface{}) bool {
+func (c *ClientEnd) Call(svcMeth string, args interface{}, reply interface{}) bool {
 	var err error
-	c.o.Do(func() {
-		for {
-			ctx, _ := context.WithTimeout(context.Background(), time.Millisecond*40)
-			client, err := grpc.DialContext(ctx, c.end, grpc.WithInsecure())
-			if err == nil {
-				c.c = client
-				return
-			}
-		}
-	})
 	if svcMeth[0] == 'R' {
 		svcMeth = svcMeth[5:]
 		a := &pb.GobMessage{Msg: gobEncode(args)}
@@ -61,9 +50,18 @@ func (c *clientEnd) Call(svcMeth string, args interface{}, reply interface{}) bo
 func MakeRPCEnds(ends []string) []RPCEnd {
 	rpcends := make([]RPCEnd, len(ends))
 	for i, v := range ends {
-		rpcends[i] = &clientEnd{
-			o:   &sync.Once{},
+		c := &ClientEnd{
 			end: v,
+		}
+		for {
+			ctx, _ := context.WithTimeout(context.Background(), time.Millisecond*40)
+			client, err := grpc.DialContext(ctx, c.end, grpc.WithInsecure())
+			if err == nil {
+				c.c = client
+				c.KVend = pb.NewKVServiceClient(c.c)
+				rpcends[i] = c
+				break
+			}
 		}
 	}
 	return rpcends
