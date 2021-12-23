@@ -41,6 +41,7 @@ func init() {
 }
 
 func (rf *Raft) initLog() {
+	// fo, _ := os.Create(time.Now().String() + ".log")
 	rf.logger = log.New(io.Discard, "", 0)
 }
 func (rf *Raft) SetLogger(logger *log.Logger) {
@@ -143,7 +144,7 @@ func (rf *Raft) applyCommits(commitIndex int64) {
 		wg = &sync.WaitGroup{}
 	}
 	for i := rf.commitIndex; i < commitIndex && int(i) < len(rf.logs)+rf.lastIncludedIndex; i++ {
-		rf.Log("apply commit", i+1)
+		// rf.Log("apply commit", i+1)
 		msg := ApplyMsg{
 			CommandValid: true,
 			CommandIndex: int(i) + 1,
@@ -156,7 +157,7 @@ func (rf *Raft) applyCommits(commitIndex int64) {
 		atomic.AddInt64(&rf.commitIndex, 1)
 		rf.applych <- msg
 		// fmt.Println(rf.me, rf.logs[int(i)-rf.lastIncludedIndex].Command)
-		rf.Log("applied commit", i+1, rf.logs[int(i)-rf.lastIncludedIndex].Command)
+		// rf.Log("applied commit", i+1, rf.logs[int(i)-rf.lastIncludedIndex].Command)
 		applied = true
 	}
 	if rf.WaitForDone {
@@ -221,6 +222,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	defer func() {
 		reply.Term = rf.currentTerm
 	}()
+	rf.Log("get appentry")
 	if rf.role == candidate && args.Term >= rf.currentTerm {
 		rf.currentTerm = args.Term
 		atomic.StoreInt64(&rf.role, follower)
@@ -242,8 +244,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	if len(args.Entries) == 0 {
 		rf.getHeartBeat()
 		reply.Success = true
-		if args.PrevLogindex == 0 ||
-			(args.PrevLogindex <= rf.getLastLogIndex() && rf.getIndexTerm(args.PrevLogindex) == args.PrevLogTerm) {
+		if (args.PrevLogindex == 0 ||
+			(args.PrevLogindex <= rf.getLastLogIndex() && rf.getIndexTerm(args.PrevLogindex) == args.PrevLogTerm)) && args.PrevLogindex != -10 {
 			rf.applyCommits(args.LeaderCommit)
 		} else {
 			reply.Success = false
@@ -492,7 +494,7 @@ START:
 		return false
 	}
 	ok := rf.sendAppendEntries(server, args, reply)
-	rf.Log("server", server, "args", args, "reply", reply)
+	// rf.Log("server", server, "args", args, "reply", reply)
 	rf.mu.Lock()
 	if !ok {
 		rf.mu.Unlock()
@@ -557,41 +559,50 @@ func (rf *Raft) leaderCommit() {
 }
 
 func (rf *Raft) sendHeartbeat(server int) bool {
-	rf.mu.Lock()
+	locked := rf.mu.TryLock()
+
 	if rf.role != leader {
-		rf.mu.Unlock()
-		return false
+		if locked {
+			rf.mu.Unlock()
+		}
+		return true
 	}
 	re := &AppendEntriesReply{}
-	var t int64 = 0
-	if rf.commitIndex-1 >= 0 {
-		termidx := rf.commitIndex - 1 - int64(rf.lastIncludedIndex)
-		if termidx == -1 {
-			t = rf.lastIncludedTerm
-		} else {
-			if termidx < 0 {
-				log.Fatalln(rf.commitIndex, rf.lastIncludedIndex)
-			}
-			t = rf.logs[termidx].Term
-		}
-	}
 	args := &AppendEntriesArgs{
 		Term:         rf.currentTerm,
 		LeaderCommit: rf.commitIndex,
 		LeaderID:     rf.me,
-		PrevLogTerm:  t,
-		PrevLogindex: int(rf.commitIndex),
+		PrevLogTerm:  -10,
+		PrevLogindex: -10,
 	}
-	rf.mu.Unlock()
+	if locked {
+		var t int64 = 0
+		if rf.commitIndex-1 >= 0 {
+			termidx := rf.commitIndex - 1 - int64(rf.lastIncludedIndex)
+			if termidx == -1 {
+				t = rf.lastIncludedTerm
+			} else {
+				if termidx < 0 {
+					log.Fatalln(rf.commitIndex, rf.lastIncludedIndex)
+				}
+				t = rf.logs[termidx].Term
+			}
+		}
+		args.PrevLogTerm = t
+		args.PrevLogindex = int(rf.commitIndex)
+		rf.mu.Unlock()
+	}
 	ok := rf.sendAppendEntries(server, args, re)
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-	prev := rf.currentTerm
-	rf.checkTerm(re.Term, -1)
-	if prev < rf.currentTerm {
-		rf.persist()
+	locked = rf.mu.TryLock()
+	if locked {
+		defer rf.mu.Unlock()
+		prev := rf.currentTerm
+		rf.checkTerm(re.Term, -1)
+		if prev < rf.currentTerm {
+			rf.persist()
+		}
 	}
-	return ok && re.Success
+	return ok
 }
 func (rf *Raft) checkTerm(term int64, leader int) bool {
 	if term > rf.currentTerm {
@@ -761,13 +772,13 @@ func (rf *Raft) StartMulti(commands ...interface{}) bool {
 		rf.logs = append(rf.logs, newlogs...)
 		rf.persist()
 		// rf.checkAndSaveSnapshot(false)
-		rf.Log("get commands", commands)
+		// rf.Log("get commands", commands)
 		go func() {
 			rf.morethanHalf(func(id int) bool {
-				rf.Log("start appentry", id)
+				// rf.Log("start appentry", id)
 				re := &AppendEntriesReply{}
 				ok := rf.appendEntries(id, re)
-				rf.Log("done appentry", id)
+				// rf.Log("done appentry", id)
 				return ok && re.Success
 
 			})
@@ -808,6 +819,9 @@ func (rf *Raft) Log(msg ...interface{}) {
 		logs := append([]interface{}{"[debug]", rf.me, "in term", rf.currentTerm, "line", l}, msg...)
 		rf.logger.Println(logs...)
 	}
+	// _, _, l, _ := runtime.Caller(1)
+	// logs := append([]interface{}{"[debug]", rf.me, "in term", rf.currentTerm, "line", l}, msg...)
+	// rf.logger.Println(logs...)
 }
 
 func (rf *Raft) Info(msg ...interface{}) {
@@ -868,7 +882,7 @@ func (rf *Raft) morethanHalf(job jobfunc) bool {
 func Make(peers []RPCEnd, me int,
 	persister *Persister, applyCh chan ApplyMsg) *Raft {
 	rf := &Raft{
-		mu:               &sync.Mutex{},
+		mu:               &Mutex{&sync.Mutex{}},
 		votedFor:         -1,
 		logs:             make([]Log, 0),
 		role:             follower,
@@ -886,7 +900,7 @@ func Make(peers []RPCEnd, me int,
 		cacheSuccCh:      make(chan struct{}),
 		cacheFailCh:      make(chan struct{}),
 		sendCh:           make(chan struct{}, 1),
-		cacheThreshold:   1000,
+		cacheThreshold:   2000,
 	}
 	for i := 0; i < len(peers); i++ {
 		rf.nextIndex[i] = 1

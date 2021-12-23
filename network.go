@@ -8,6 +8,8 @@ import (
 	"google.golang.org/grpc"
 )
 
+var maxSizeOption = grpc.MaxCallRecvMsgSize(32 * 10e6) // TODO 实现snapshot分片传输，避免这行
+
 type RPCEnd interface {
 	Call(svcMeth string, args interface{}, reply interface{}) bool
 }
@@ -25,11 +27,11 @@ func (c *ClientEnd) Call(svcMeth string, args interface{}, reply interface{}) bo
 		a := &pb.GobMessage{Msg: gobEncode(args)}
 		var r *pb.GobMessage
 		if svcMeth == "AppendEntries" {
-			r, err = pb.NewRaftServiceClient(c.c).AppendEntries(context.Background(), a)
+			r, err = pb.NewRaftServiceClient(c.c).AppendEntries(context.Background(), a, maxSizeOption)
 		} else if svcMeth == "InstallSnapshot" {
-			r, err = pb.NewRaftServiceClient(c.c).InstallSnapshot(context.Background(), a)
+			r, err = pb.NewRaftServiceClient(c.c).InstallSnapshot(context.Background(), a, maxSizeOption)
 		} else {
-			r, err = pb.NewRaftServiceClient(c.c).RequestVote(context.Background(), a)
+			r, err = pb.NewRaftServiceClient(c.c).RequestVote(context.Background(), a, maxSizeOption)
 		}
 		if err == nil {
 			gobDecode(r.GetMsg(), reply)
@@ -39,9 +41,9 @@ func (c *ClientEnd) Call(svcMeth string, args interface{}, reply interface{}) bo
 		svcMeth = svcMeth[9:]
 		if svcMeth == "Get" {
 			// re := reply.(*pb.GetReply)
-			err = c.c.Invoke(context.Background(), "/KVService/Get", args, reply)
+			err = c.c.Invoke(context.Background(), "/KVService/Get", args, reply, maxSizeOption)
 		} else {
-			err = c.c.Invoke(context.Background(), "/KVService/PutAppend", args, reply)
+			err = c.c.Invoke(context.Background(), "/KVService/PutAppend", args, reply, maxSizeOption)
 		}
 		return err == nil
 	}

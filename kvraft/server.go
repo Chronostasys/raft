@@ -373,7 +373,7 @@ func (kv *KVServer) Serve(addr string, opt ...grpc.ServerOption) {
 		log.Fatalln(err.Error())
 	}
 	kv.l = l
-	server := grpc.NewServer(opt...)
+	server := grpc.NewServer(append(opt, grpc.MaxRecvMsgSize(32*10e6))...)
 
 	pb.RegisterKVServiceServer(server, &KVRPCServer{
 		kv: kv,

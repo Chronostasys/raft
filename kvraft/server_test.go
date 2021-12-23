@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Chronostasys/raft"
+	"github.com/Chronostasys/trees/query"
 )
 
 func TestRealServer(t *testing.T) {
@@ -142,5 +143,21 @@ func BenchmarkRealServerAppend(b *testing.B) {
 func BenchmarkRealServerGet(b *testing.B) {
 	benchmarkOp(func(client *Clerk, i int) {
 		client.Get(strconv.Itoa(i))
+	}, b, false)
+}
+
+func BenchmarkRealServerQuery(b *testing.B) {
+	o := sync.Once{}
+	var q *query.TableQuerier
+	t := &Test{TestInt: 0}
+	benchmarkOp(func(client *Clerk, i int) {
+		o.Do(func() {
+			InitQueryEngine(client)
+			query.Register(&Test{})
+			query.CreateTable(&Test{})
+			q, _ = query.Table(&Test{})
+		})
+		t.TestInt = i
+		q.Insert(t)
 	}, b, false)
 }
