@@ -195,20 +195,6 @@ func (rf *Raft) encodeState() []byte {
 	return w.Bytes()
 }
 
-func (rf *Raft) SaveSnapshot(snapshot []byte) {
-	// save snapshot & state
-	realLastIdx := int(rf.commitIndex) - 1 - rf.lastIncludedIndex
-	if realLastIdx != -1 {
-		lastIncludedLog := rf.logs[realLastIdx]
-		rf.lastIncludedIndex = lastIncludedLog.Index
-		rf.lastIncludedTerm = lastIncludedLog.Term
-	}
-	rf.logs = rf.logs[realLastIdx+1:] // discard snapshoted logs
-	data := rf.encodeState()
-	rf.persister.SaveStateAndSnapshot(data, snapshot)
-	rf.lastSNIdx = int(rf.commitIndex)
-	// fmt.Println(rf.persister.RaftStateSize(), rf.persister.SnapshotSize())
-}
 func (rf *Raft) getHeartBeat() {
 	select {
 	case rf.heartbeatCh <- struct{}{}:
@@ -642,6 +628,24 @@ func (rf *Raft) checkAndSaveSnapshot() bool {
 	}
 	return false
 }
+func (rf *Raft) SaveSnapshot(snapshot []byte) {
+	// save snapshot & state
+	realLastIdx := int(rf.commitIndex) - 1 - rf.lastIncludedIndex
+	i := realLastIdx - 3*rf.cacheThreshold
+	if i > 0 {
+		realLastIdx = i
+	}
+	if realLastIdx != -1 {
+		lastIncludedLog := rf.logs[realLastIdx]
+		rf.lastIncludedIndex = lastIncludedLog.Index
+		rf.lastIncludedTerm = lastIncludedLog.Term
+	}
+	rf.logs = rf.logs[realLastIdx+1:] // discard snapshoted logs
+	data := rf.encodeState()
+	rf.persister.SaveStateAndSnapshot(data, snapshot)
+	rf.lastSNIdx = int(rf.commitIndex)
+	// fmt.Println(rf.persister.RaftStateSize(), rf.persister.SnapshotSize())
+}
 
 //
 // the service using Raft (e.g. a k/v server) wants to start
@@ -895,7 +899,7 @@ func Make(peers []RPCEnd, me int,
 		commitIndex:      0,
 		MaxRaftStateSize: -1,
 		killch:           make(chan struct{}),
-		cache:            make([]interface{}, 10000),
+		cache:            make([]interface{}, 3000),
 		cachemu:          &sync.Mutex{},
 		cacheSuccCh:      make(chan struct{}),
 		cacheFailCh:      make(chan struct{}),
@@ -1003,7 +1007,7 @@ func Make(peers []RPCEnd, me int,
 
 	go func() {
 		for {
-			time.Sleep(time.Millisecond * 100)
+			time.Sleep(time.Millisecond * 10)
 			rp100ms := atomic.LoadInt64(&rf.reqPer100ms)
 			atomic.AddInt64(&rf.reqPer100ms, -rp100ms)
 			select {
