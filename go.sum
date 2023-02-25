@@ -1,14 +1,6 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/Chronostasys/trees v0.0.0-20211123061150-8a378ea78d44 h1:BjXt8O6NiG15IWb8romRC97JUmNC6aB/g2kyOFf1L7Y=
-github.com/Chronostasys/trees v0.0.0-20211123061150-8a378ea78d44/go.mod h1:jZ+ZXddEDSH6MZZEqvpASwg9DP+mYBls22MtBzLJWuk=
-github.com/Chronostasys/trees v0.0.0-20211208074509-3f8ab06121f7 h1:1uSJ3XdcihH7sHQt5sca5WoQLNR0Ficf6n4hEZobBCk=
-github.com/Chronostasys/trees v0.0.0-20211208074509-3f8ab06121f7/go.mod h1:jZ+ZXddEDSH6MZZEqvpASwg9DP+mYBls22MtBzLJWuk=
-github.com/Chronostasys/trees v0.0.0-20211221084229-4d1dbb7e90e3 h1:yau1bL6t7Vd3T2OucoQ6nPv4BJsqtmf5DgBujNY5mKY=
-github.com/Chronostasys/trees v0.0.0-20211221084229-4d1dbb7e90e3/go.mod h1:jZ+ZXddEDSH6MZZEqvpASwg9DP+mYBls22MtBzLJWuk=
-github.com/Chronostasys/trees v0.0.0-20211222101258-886391b7d3c4 h1:i5cksgfeIkF0z0SIelicP/OfnSHmZpIYjNW09dbxOZE=
-github.com/Chronostasys/trees v0.0.0-20211222101258-886391b7d3c4/go.mod h1:jZ+ZXddEDSH6MZZEqvpASwg9DP+mYBls22MtBzLJWuk=
 github.com/Chronostasys/trees v0.0.0-20211222112450-6ea293ad333e h1:vHNh90h8b9vwujWZG9WUlGQJy6HQxSkOx19478aFfr0=
 github.com/Chronostasys/trees v0.0.0-20211222112450-6ea293ad333e/go.mod h1:jZ+ZXddEDSH6MZZEqvpASwg9DP+mYBls22MtBzLJWuk=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
@@ -107,8 +99,8 @@ golang.org/x/sys v0.0.0-20201119102817-f84b799fce68/go.mod h1:h1NjWce9XRLGQEsW7w
 golang.org/x/sys v0.0.0-20210330210617-4fbd30eecc44/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210423082822-04245dca01da/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20210510120138-977fb7262007/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.0.0-20211103235746-7861aae1554b h1:1VkfZQv42XQlA/jchYumAnv1UPo6RgF9rJFkTgZIxO4=
-golang.org/x/sys v0.0.0-20211103235746-7861aae1554b/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+golang.org/x/sys v0.1.0 h1:kunALQeHf1/185U1i0GOB/fy1IPRDDpuoOOqRReG57U=
+golang.org/x/sys v0.1.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.3/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
